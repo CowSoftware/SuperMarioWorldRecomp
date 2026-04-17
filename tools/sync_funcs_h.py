@@ -41,6 +41,15 @@ def collect_cfg_sigs() -> dict:
     specificity = recomp._sig_specificity
 
     rom = load_rom(str(ROM_PATH))
+    # Load the CURRENT funcs.h so we seed each bank's cfg.sigs with the
+    # same info run_config would see at reconciliation time. Without this
+    # step, a function declared `uint8 foo(uint8 k);` in funcs.h looks
+    # like a plain `void()` to the augment pass (cfg alone has no sig),
+    # so the RetAY caller-usage promotion never fires in sync_funcs_h
+    # even though it does in the per-bank regen. That disagreement
+    # would then surface as C2371 (decl vs funcs.h mismatch) at build
+    # time after sync stops rewriting the outdated declaration.
+    funcs_h_sigs = recomp.parse_funcs_h(str(FUNCS_H))
     sigs = {}
     for bank in BANKS:
         cfg_path = RECOMP_DIR / f'bank{bank}.cfg'
@@ -48,9 +57,20 @@ def collect_cfg_sigs() -> dict:
         # Mirror the preprocessing pipeline that run_config performs, so
         # inferred parameters reach funcs.h and cross-bank callers pass the
         # right register values. (Rule 0: ROM is authoritative.)
-        #   1. Promote `name ... sig:...` sub-entries to real funcs so their
+        #   1. Seed cfg.sigs from funcs.h for every name entry that funcs.h
+        #      declares but cfg doesn't. Matches run_config's step-1
+        #      reconciliation so void/uint8 return types are visible to
+        #      the augment pass (and the void/uint8 -> RetY/RetAY
+        #      promotions fire on the same basis in both contexts).
+        #   2. Promote `name ...` sub-entries to real funcs so their
         #      bodies get liveness inference applied.
-        #   2. Run live-in inference to derive A/X/Y register parameters.
+        #   3. Run live-in inference to derive A/X/Y register parameters.
+        for addr, name in cfg.names.items():
+            if addr in cfg.sigs:
+                continue
+            fh_sig = funcs_h_sigs.get(name)
+            if fh_sig is not None:
+                cfg.sigs[addr] = fh_sig
         recomp.promote_sub_entries(rom, cfg)
         recomp.augment_cfg_sigs_from_livein(rom, cfg)
         for fname, addr, sig, _end, _mo, _h in cfg.funcs:
@@ -143,13 +163,22 @@ def _rom_authoritative_sig(cfg_sig: str, fh_sig: str) -> str:
 def main() -> int:
     funcs_h_sigs = recomp.parse_funcs_h(str(FUNCS_H))
 
-    # Build {fname: cfg_sig} by preferring the intra-bank entry for each name
-    # (the one the recompiler itself sees when generating that bank).
+    # Build {fname: cfg_sig}. When multiple addresses share a name — e.g. a
+    # bank-crossing trampoline `name 01:801A foo` alongside the real body
+    # `func foo 02:D294` — prefer the more-specific sig so funcs.h reflects
+    # the actual body's return convention (RetAY) rather than the
+    # trampoline's flattened view (uint8). Without this, recomp.py regen
+    # promotes the body to RetAY locally while funcs.h still says uint8,
+    # and every caller's assignment `v = foo(...)` fails with
+    # `cannot convert from 'uint8' to 'RetAY'`.
+    specificity = recomp._sig_specificity
     cfg_sigs_by_name: dict = {}
     for _addr, (fname, sig) in collect_cfg_sigs().items():
         if sig is None:
             continue
-        cfg_sigs_by_name.setdefault(fname, sig)
+        existing = cfg_sigs_by_name.get(fname)
+        if existing is None or specificity(sig) > specificity(existing):
+            cfg_sigs_by_name[fname] = sig
 
     # Reconcile per function. Only rewrite if the reconciled sig differs from
     # the current funcs.h sig; leave the original line otherwise.

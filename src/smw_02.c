@@ -595,11 +595,11 @@ bool LoadOneSprite(const uint8 *p, uint8 k, PointU16 pt) {
   spr_spriteid[v10] = v15;
   spr_load_status_table_index[v10] = k;
   if (!timer_silver_pswitch || (kInitializeNormalSpriteRAMTables_Sprite190FVals[spr_spriteid[v10]] & 0x40) != 0) {
-    InitializeNormalSpriteRAMTables(v10);
+    InitializeNormalSpriteRAMTables(v10, v10);
   } else {
     spr_spriteid[v10] = 33;
     spr_current_status[v10] = 8;
-    InitializeNormalSpriteRAMTables(v10);
+    InitializeNormalSpriteRAMTables(v10, v10);
     spr_table15f6[v10] = spr_table15f6[v10] & 0xF1 | 2;
   }
   spr_xoffscreen_flag[v10] = 1;
