@@ -172,6 +172,32 @@ def test_ldx_restore_walks_past_index_uses():
     )
 
 
+def test_carry_return_detects_clc_rts():
+    # CLC ; RTS — the "no contact" bool-via-carry idiom.
+    rom = bytes([0x18, 0x60])  # CLC, RTS
+    insns = _build_insns(rom, 0x8000)
+    assert recomp._looks_like_carry_return(insns), (
+        'CLC ; RTS should be recognised as a carry-return helper'
+    )
+
+
+def test_carry_return_detects_sec_rts():
+    rom = bytes([0x38, 0x60])  # SEC, RTS
+    insns = _build_insns(rom, 0x8000)
+    assert recomp._looks_like_carry_return(insns), (
+        'SEC ; RTS should be recognised as a carry-return helper'
+    )
+
+
+def test_carry_return_rejects_lda_rts():
+    # LDA #$55 ; RTS — returns A explicitly, not carry.
+    rom = bytes([0xA9, 0x55, 0x60])
+    insns = _build_insns(rom, 0x8000)
+    assert not recomp._looks_like_carry_return(insns), (
+        'LDA ; RTS writes A and should NOT be a carry-return helper'
+    )
+
+
 def test_ldx_restore_bails_on_non_ldx_writer():
     # LDX $1698 ; TAX ; RTS
     # Here TAX writes X after the LDX, so X at RTS is NOT g_ram[0x1698].
