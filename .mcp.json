@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "ghidra_smw": { "type": "sse", "url": "http://localhost:8078/sse" }
+  }
+}
