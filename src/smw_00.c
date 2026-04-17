@@ -333,7 +333,7 @@ void SmwVectorReset() {
 void SmwRunOneFrameOfGame_Internal() {
   assert(waiting_for_vblank != 0);
   ++counter_global_frames;
-  InitAndMainLoop_ProcessGameMode();
+  InitAndMainLoop_ProcessGameMode(0);  /* j: entry point, no Y input */
   waiting_for_vblank = 0;
 }
 

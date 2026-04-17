@@ -16,6 +16,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 RECOMP_PY = REPO / 'snesrecomp' / 'recompiler' / 'recomp.py'
 RECOMP_DIR = REPO / 'recomp'
+GEN_DIR = REPO / 'src' / 'gen'
 FUNCS_H = RECOMP_DIR / 'funcs.h'
 ROM_PATH = REPO / 'smw.sfc'
 BANKS = ['00', '01', '02', '03', '04', '05', '07', '0c', '0d']
@@ -23,6 +24,60 @@ BANKS = ['00', '01', '02', '03', '04', '05', '07', '0c', '0d']
 sys.path.insert(0, str(RECOMP_PY.parent))
 import recomp  # noqa: E402
 from snes65816 import load_rom  # noqa: E402
+
+
+_GEN_BODY_RE = re.compile(
+    r'^(?P<ret>\w[\w\s\*]*?)\s+(?P<name>\w+)\s*\((?P<params>[^)]*)\)\s*\{\s*//\s*(?P<addr>[0-9a-f]{6})',
+    re.MULTILINE,
+)
+
+
+def collect_gen_sigs() -> dict:
+    """Scan every src/gen/smw_*_gen.c body header for its declared return
+    type + parameter list + source address. Return {full_addr: (name, sig)}
+    using the same `ret(param_type_param_name,...)` encoding parse_sig
+    understands.
+
+    Gen files are the ground truth for what the recompiler emitted this
+    cycle, so using them sidesteps divergence between sync_funcs_h's
+    simulated augment and run_config's full pipeline. Whatever the gen
+    file says the function looks like, that's what funcs.h has to match.
+    """
+    out: dict = {}
+    for p in sorted(GEN_DIR.glob('smw_??_gen.c')):
+        text = p.read_text()
+        for m in _GEN_BODY_RE.finditer(text):
+            ret_raw = m.group('ret').strip()
+            name = m.group('name')
+            params_raw = m.group('params').strip()
+            addr = int(m.group('addr'), 16)
+            if ret_raw == 'extern' or ret_raw.startswith('static'):
+                continue  # skip decls
+            # Convert C-style params back to cfg-style tokens.
+            if not params_raw or params_raw == 'void':
+                sig = f'{ret_raw}()'
+            else:
+                toks = []
+                for p_ in params_raw.split(','):
+                    p_ = p_.strip()
+                    if not p_:
+                        continue
+                    if '*' in p_:
+                        star = p_.index('*')
+                        pname = p_[star:].replace(' ', '')
+                        type_part = p_[:star].strip()
+                        words = [w for w in type_part.split()
+                                 if w not in ('const', 'volatile', 'struct')]
+                        if words and words[-1] not in (
+                                'uint8', 'uint16', 'int8', 'int16', 'char', 'void'):
+                            toks.append(f'{words[-1]}_{pname}')
+                        else:
+                            toks.append(pname)
+                    else:
+                        toks.append('_'.join(p_.split()))
+                sig = f'{ret_raw}(' + ','.join(toks) + ')'
+            out[addr] = (name, sig)
+    return out
 
 
 def collect_cfg_sigs() -> dict:
@@ -62,15 +117,19 @@ def collect_cfg_sigs() -> dict:
         #      reconciliation so void/uint8 return types are visible to
         #      the augment pass (and the void/uint8 -> RetY/RetAY
         #      promotions fire on the same basis in both contexts).
-        #   2. Promote `name ...` sub-entries to real funcs so their
+        #   2. Auto-promote intra-bank branch targets so BRA/BCC into
+        #      sibling-function bodies become sub-entries (matches
+        #      run_config's auto_promote_branch_targets pass).
+        #   3. Promote `name ...` sub-entries to real funcs so their
         #      bodies get liveness inference applied.
-        #   3. Run live-in inference to derive A/X/Y register parameters.
+        #   4. Run live-in inference to derive A/X/Y register parameters.
         for addr, name in cfg.names.items():
             if addr in cfg.sigs:
                 continue
             fh_sig = funcs_h_sigs.get(name)
             if fh_sig is not None:
                 cfg.sigs[addr] = fh_sig
+        recomp.auto_promote_branch_targets(rom, cfg)
         recomp.promote_sub_entries(rom, cfg)
         recomp.augment_cfg_sigs_from_livein(rom, cfg)
         for fname, addr, sig, _end, _mo, _h in cfg.funcs:
@@ -171,6 +230,12 @@ def main() -> int:
     # promotes the body to RetAY locally while funcs.h still says uint8,
     # and every caller's assignment `v = foo(...)` fails with
     # `cannot convert from 'uint8' to 'RetAY'`.
+    #
+    # Layered: first the cfg-derived sigs (what the sim-augment computed),
+    # then overlay the actual gen-file body sigs. Gen is authoritative for
+    # the *current regen cycle*: whatever recomp.py actually emitted into
+    # a `Type Fname(uint8 k) { // ADDR` body header is what callers are
+    # going to link against, so funcs.h must agree with that exact shape.
     specificity = recomp._sig_specificity
     cfg_sigs_by_name: dict = {}
     for _addr, (fname, sig) in collect_cfg_sigs().items():
@@ -179,6 +244,12 @@ def main() -> int:
         existing = cfg_sigs_by_name.get(fname)
         if existing is None or specificity(sig) > specificity(existing):
             cfg_sigs_by_name[fname] = sig
+    for _addr, (fname, sig) in collect_gen_sigs().items():
+        if sig is None:
+            continue
+        # Gen sigs beat cfg-sim sigs: the body's declared signature is the
+        # single source of truth for what the C compiler will see.
+        cfg_sigs_by_name[fname] = sig
 
     # Reconcile per function. Only rewrite if the reconciled sig differs from
     # the current funcs.h sig; leave the original line otherwise.
