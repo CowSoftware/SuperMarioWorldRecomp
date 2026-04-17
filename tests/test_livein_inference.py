@@ -118,3 +118,72 @@ def test_PHY_PLY_means_Y_preserved():
     assert not recomp._writes_register_without_save_restore(insns, 'Y'), (
         'PHY/PLY should bracket writes — Y is preserved from callerview'
     )
+
+
+def test_memory_save_restore_counts_as_preserve():
+    # STY $03 ; LDA #$55 ; TAY ; LDY $03 ; RTS
+    # Classic STR/LDR save-restore idiom ($00:86DF pattern). Even though
+    # TAY writes Y in the middle, the final LDY $03 restores caller's Y.
+    rom = bytes([
+        0x84, 0x03,  # STY $03
+        0xA9, 0x55,  # LDA #$55
+        0xA8,        # TAY (writes Y)
+        0xA4, 0x03,  # LDY $03
+        0x60,        # RTS
+    ])
+    insns = _build_insns(rom, 0x8000)
+    assert not recomp._writes_register_without_save_restore(insns, 'Y'), (
+        'STY $03 ... LDY $03 save-restore should preserve Y'
+    )
+
+
+def test_ldx_before_rts_restore_expr():
+    # LDA $12 ; TAX ; LDX $1698 ; RTS
+    # $1698 is the WRAM slot holding caller's sprite index. Final LDX
+    # restores X from there, so caller's X is preserved through the call.
+    rom = bytes([
+        0xA5, 0x12,              # LDA $12
+        0xAA,                    # TAX (writes X)
+        0xAE, 0x98, 0x16,        # LDX $1698
+        0x60,                    # RTS
+    ])
+    insns = _build_insns(rom, 0x8000)
+    expr = recomp._detect_x_restore_expr(insns)
+    assert expr == 'g_ram[0x1698]', (
+        f'LDX $1698 ; RTS should detect g_ram[0x1698] restore, got {expr!r}'
+    )
+
+
+def test_ldx_restore_walks_past_index_uses():
+    # LDX $1698 ; STA $16A1,X ; STA $16A9,X ; RTS
+    # Intervening X-indexed stores read X but don't modify it. The final
+    # LDX result survives to the RTS.
+    rom = bytes([
+        0xAE, 0x98, 0x16,        # LDX $1698
+        0x9D, 0xA1, 0x16,        # STA $16A1,X (reads X)
+        0x9D, 0xA9, 0x16,        # STA $16A9,X (reads X)
+        0x60,                    # RTS
+    ])
+    insns = _build_insns(rom, 0x8000)
+    expr = recomp._detect_x_restore_expr(insns)
+    assert expr == 'g_ram[0x1698]', (
+        f'LDX followed only by X-indexed reads should still register as a'
+        f' restore; got {expr!r}'
+    )
+
+
+def test_ldx_restore_bails_on_non_ldx_writer():
+    # LDX $1698 ; TAX ; RTS
+    # Here TAX writes X after the LDX, so X at RTS is NOT g_ram[0x1698].
+    # Restore detector must bail.
+    rom = bytes([
+        0xAE, 0x98, 0x16,        # LDX $1698
+        0xAA,                    # TAX (overwrites X)
+        0x60,                    # RTS
+    ])
+    insns = _build_insns(rom, 0x8000)
+    expr = recomp._detect_x_restore_expr(insns)
+    assert expr is None, (
+        f'TAX between LDX and RTS clobbers the restore; detector should'
+        f' bail. Got {expr!r}'
+    )
