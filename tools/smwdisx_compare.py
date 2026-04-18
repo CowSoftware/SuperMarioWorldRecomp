@@ -256,18 +256,24 @@ def _expand_macro(macro_name: str, args: str) -> Optional[Tuple[str, str, str]]:
     return (cmd.upper(), suffix, f'{addr}{addr_form}')
 
 
-def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
-    """Parse SMWDisX/bank_XX.asm into {full_addr: (mnem, suffix)}.
+def parse_bank(bank_hex: str) -> Tuple[Dict[int, Tuple[str, str]], Set[int]]:
+    """Parse SMWDisX/bank_XX.asm into (mnem_map, data_addrs).
 
-    Only code addresses are recorded. Data regions (db/dw/dl/dd and
-    unknown directives that advance PC) are skipped.
+    mnem_map: {full_addr: (mnem, suffix)} — one entry per instruction.
+    data_addrs: set of addresses we saw as data bytes (db/dw/dl/dd).
+    Using the parser's per-byte data set (vs label-based region lookup)
+    avoids false positives from anonymous labels (`+`/`-`) that aren't
+    in SMW_U.sym — label-based would mis-flag an anonymous-labeled code
+    block wedged between a DATA_XX label and the next CODE_XX label as
+    data.
     """
     bank = int(bank_hex, 16)
     path = SMWDISX / f'bank_{bank_hex.upper()}.asm'
     if not path.exists():
-        return {}
+        return {}, set()
 
     out: Dict[int, Tuple[str, str]] = {}
+    data_addrs: Set[int] = set()
     pc: Optional[int] = None
     # Nested conditional stack: each entry is (is_active, has_else_fired).
     cond_stack: List[Tuple[bool, bool]] = []
@@ -347,10 +353,11 @@ def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
             if m:
                 directive = m.group(1).lower()
                 items_raw = m.group(2)
-                # Skip anything after a line-continuing comment marker;
-                # comments have been stripped above.
                 items = [x for x in items_raw.split(',') if x.strip()]
                 size_per = {'db': 1, 'dw': 2, 'dl': 3, 'dd': 4}[directive]
+                if pc is not None and (pc >> 16) == bank:
+                    for off in range(size_per * len(items)):
+                        data_addrs.add(pc + off)
                 if pc is not None:
                     pc += size_per * len(items)
                 continue
@@ -388,7 +395,13 @@ def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
             # next label anchor.
             pc = None
 
-    return out
+    return out, data_addrs
+
+
+def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
+    """Legacy wrapper returning only the mnem_map (pre-data_addrs split)."""
+    mnems, _ = parse_bank(bank_hex)
+    return mnems
 
 
 # ---------------------------------------------------------------------------
@@ -396,9 +409,24 @@ def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 def load_cfgs(rom: bytes) -> Dict[str, 'recomp.Config']:
-    """Load every bank cfg and populate cfg.jsl_dispatch{,_long} by
-    running the recompiler's auto-detect pass. Without this, decode_func
-    walks past JSL-dispatch sites into inline table bytes."""
+    """Load every bank cfg and run the same preprocessing the real
+    regen pipeline does:
+
+      1. Auto-detect dispatch helpers (jsl_dispatch / jsl_dispatch_long)
+         so decode_func knows where inline tables live.
+      2. Run discover_bank to find every JSR/JSL/dispatch-table target.
+         Auto-promote each discovered intra-bank address to a synthetic
+         `auto_BB_AAAA` func so downstream decode_func / known_func_starts
+         sees them as known code. This mirrors run_config's auto-promote
+         pass (recomp.py ~5201). Without it, the harness's decoder
+         sees fewer known functions than the real regen does and
+         reports phantom data-byte FAILs where the real regen doesn't
+         (dispatch handler addresses show up as unknown, so the dispatch
+         cap break triggers past the real table end).
+      3. Promote sub-entries declared in cfg.names whose address falls
+         inside an existing func range.
+    """
+    from discover import discover_bank as _discover_bank  # noqa: E402
     cfgs: Dict[str, recomp.Config] = {}
     for bank_hex in ['00', '01', '02', '03', '04', '05', '07', '0c', '0d']:
         path = RECOMP_DIR / f'bank{bank_hex}.cfg'
@@ -406,6 +434,46 @@ def load_cfgs(rom: bytes) -> Dict[str, 'recomp.Config']:
             continue
         cfg = recomp.parse_config(str(path))
         recomp._auto_detect_dispatch_helpers(rom, cfg)
+        # Iterate discover_bank to fixpoint (same as run_config does).
+        _seed_set = {a for _, a, *_ in cfg.funcs}
+        _existing_addrs = set(_seed_set)
+        _existing_local_names = {
+            a & 0xFFFF for a in cfg.names if (a >> 16) == cfg.bank
+        }
+        _discovered_local: set = set()
+        for _round in range(8):
+            try:
+                _round_local, _round_cross = _discover_bank(
+                    rom, cfg.bank,
+                    external_seeds=_seed_set,
+                    jsl_dispatch=set(cfg.jsl_dispatch or []),
+                    jsl_dispatch_long=set(cfg.jsl_dispatch_long or []),
+                )
+            except Exception:
+                break
+            _prev = len(_discovered_local)
+            _discovered_local |= _round_local
+            if len(_discovered_local) == _prev:
+                break
+            _seed_set |= _discovered_local
+        for _addr in sorted(_discovered_local):
+            if _addr < 0x8000 or _addr > 0xFFFF:
+                continue
+            if _addr in _existing_addrs or _addr in _existing_local_names:
+                continue
+            if _addr in cfg.no_autodiscover:
+                continue
+            in_exclude = any(er_s <= _addr <= er_e
+                             for er_s, er_e in cfg.exclude_ranges)
+            if in_exclude:
+                continue
+            _auto_name = f'auto_{cfg.bank:02X}_{_addr:04X}'
+            cfg.funcs.append((_auto_name, _addr, 'void()', None, {}, {}))
+            cfg.names[(cfg.bank << 16) | _addr] = _auto_name
+            cfg.sigs[(cfg.bank << 16) | _addr] = 'void()'
+            _existing_addrs.add(_addr)
+        cfg.funcs.sort(key=lambda t: t[1])
+        recomp.promote_sub_entries(rom, cfg)
         cfgs[bank_hex] = cfg
     return cfgs
 
@@ -426,6 +494,7 @@ class FuncResult:
 
 def check_function(rom: bytes, cfg, labels: List[Label],
                    mnem_map: Dict[int, Tuple[str, str]],
+                   data_addrs: Set[int],
                    fname: str,
                    addr: int, eovr: Optional[int], mo) -> FuncResult:
     full_addr = (cfg.bank << 16) | addr
@@ -433,14 +502,18 @@ def check_function(rom: bytes, cfg, labels: List[Label],
         return FuncResult(fname, cfg.bank, addr, 'SKIP',
                           'cfg has skip directive')
     end = eovr if eovr is not None else 0x10000
+    known_func_addrs = set(cfg.names.keys())
+    for _fn, _addr, *_r in cfg.funcs:
+        known_func_addrs.add((cfg.bank << 16) | _addr)
     try:
         insns = recomp.decode_func(
             rom, cfg.bank, addr, end=end,
             jsl_dispatch=cfg.jsl_dispatch or None,
             jsl_dispatch_long=cfg.jsl_dispatch_long or None,
+            dispatch_known_addrs=known_func_addrs,
             mode_overrides=mo or None,
             exclude_ranges=cfg.exclude_ranges or None,
-            known_func_starts=set(cfg.names.keys()),
+            known_func_starts=known_func_addrs,
             validate_branches=False,
         )
     except Exception as e:
@@ -460,26 +533,18 @@ def check_function(rom: bytes, cfg, labels: List[Label],
             entry_label = None
 
     # For each emitted insn, run two checks in order:
-    #   (A) v0.1 code-vs-data: if addr lands inside a SMWDisX DATA label
-    #       region, FAIL.
-    #   (B) v0.2 mnemonic parity: if mnem_map has an entry at addr and
+    #   (A) code-vs-data: if addr is in the parser's data_addrs set
+    #       (bytes the parser saw advance PC via db/dw/dl/dd), FAIL.
+    #   (B) mnemonic parity: if mnem_map has an entry at addr and
     #       it disagrees with our mnemonic, FAIL.
     for ins in insns:
         pc = ins.addr
-        info = find_label_for_addr(labels, pc)
-        if info is not None:
-            label, nxt = info
-            if label.kind == 'data':
-                end_of_region = nxt.addr if nxt else 0x1000000
-                if pc < end_of_region:
-                    return FuncResult(
-                        fname, cfg.bank, addr, 'FAIL',
-                        f'decoded into SMWDisX {label.name} at ${pc:06X}',
-                        first_divergence=(
-                            pc,
-                            f'SMWDisX={label.name} region '
-                            f'[${label.addr:06X}..${end_of_region:06X}) '
-                            f'ours={ins.mnem}'))
+        if pc in data_addrs:
+            return FuncResult(
+                fname, cfg.bank, addr, 'FAIL',
+                f'decoded into SMWDisX data byte at ${pc:06X}',
+                first_divergence=(
+                    pc, f'SMWDisX=data, ours={ins.mnem}'))
 
         # v0.2: mnemonic parity. Only check when SMWDisX has an anchor.
         smwdisx_ent = mnem_map.get(pc)
@@ -524,21 +589,21 @@ def run(bank_filter: Optional[str], func_filter: Optional[str], verbose: bool) -
     rom = load_rom(str(ROM_PATH))
     labels = load_symbols()
     cfgs = load_cfgs(rom)
-    # Parse every targeted bank once, cache mnem_map.
-    mnem_maps: Dict[str, Dict[int, Tuple[str, str]]] = {}
+    # Parse every targeted bank once, cache (mnem_map, data_addrs).
+    bank_parses: Dict[str, Tuple[Dict[int, Tuple[str, str]], Set[int]]] = {}
     for bank_hex in cfgs:
         if bank_filter and bank_hex != bank_filter:
             continue
-        mnem_maps[bank_hex] = parse_bank_mnems(bank_hex)
+        bank_parses[bank_hex] = parse_bank(bank_hex)
     results: List[FuncResult] = []
     for bank_hex, cfg in cfgs.items():
         if bank_filter and bank_hex != bank_filter:
             continue
-        mnem_map = mnem_maps.get(bank_hex, {})
+        mnem_map, data_addrs = bank_parses.get(bank_hex, ({}, set()))
         for (fname, faddr, _sig, eovr, mo, _hints) in cfg.funcs:
             if func_filter and fname != func_filter:
                 continue
-            res = check_function(rom, cfg, labels, mnem_map,
+            res = check_function(rom, cfg, labels, mnem_map, data_addrs,
                                  fname, faddr, eovr, mo)
             results.append(res)
 
