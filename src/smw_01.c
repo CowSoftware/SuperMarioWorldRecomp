@@ -288,5 +288,5 @@ static const uint8 kLineGuideSpeedTable_PtrsHi[32] = { 0xf9, 0xf9, 0xfa, 0xfa, 0
 
 // Always compiled — needed by gen file callers via Bool wrapper
 uint8 Spr0A7_IggyBall_CheckTiltingPlatformCollision_Bool(uint8 k) {
-  return Spr0A7_IggyBall_CheckTiltingPlatformCollision(k).retval ? 1 : 0;
+  return Spr0A7_IggyBall_CheckTiltingPlatformCollision(k) ? 1 : 0;
 }

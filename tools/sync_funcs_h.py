@@ -399,14 +399,29 @@ def main() -> int:
             # the pointer for hand callers (LmHook_* being the common
             # case).
             cfg_pre = cfg_sig_before_gen.get(fname, cfg_sig)
-            cfg_ret, _ = recomp.parse_sig(cfg_pre)
+            cfg_ret, cfg_params = recomp.parse_sig(cfg_pre)
             gen_ret, gen_params = recomp.parse_sig(cfg_sig)  # cfg_sig == gen sig here
-            if not gen_params:
+            # Merge params: start with cfg's explicit params (includes
+            # live-in augment results, which is ROM-truth), then add any
+            # extra REGISTER params from gen that cfg doesn't have. Skip
+            # non-register param types (pointers, structs) — those can
+            # only come from a funcs.h hand declaration, not from
+            # live-in analysis; since we're in the no-hand-body branch,
+            # they're stale and must be dropped.
+            cfg_param_names = {n for _t, n in cfg_params}
+            REG_PARAM_NAMES = {'k', 'j', 'a', 'x', 'y'}
+            merged_params = list(cfg_params)
+            for t, n in gen_params:
+                if n in cfg_param_names:
+                    continue
+                if n in REG_PARAM_NAMES:
+                    merged_params.append((t, n))
+            if not merged_params:
                 reconciled = f'{cfg_ret}()'
             else:
                 reconciled = (
                     f'{cfg_ret}('
-                    + ','.join(f'{t}_{n}' for t, n in gen_params)
+                    + ','.join(f'{t}_{n}' for t, n in merged_params)
                     + ')'
                 )
         elif fname in gen_body_fnames and recomp._sig_matches_dispatch_shape(cfg_sig):
