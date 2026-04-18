@@ -166,6 +166,33 @@ Every claim MUST be backed by measured data, Ghidra evidence, or explicit behavi
 
 ---
 
+## 1b. TESTS COME WITH THE CODE
+
+Any change to the recompiler's decision logic (new inference pass,
+new cfg directive, new heuristic, fix to a mis-classification,
+narrowed/widened conditions) MUST ship with a test that pins the
+intended behavior. This includes both directions:
+
+- Introducing new behavior: a test that the new logic fires on the
+  shape it's meant for and does not fire on shapes it's not.
+- Fixing previously broken behavior: a regression test that would
+  have failed against the old code.
+
+Live in `snesrecomp/tests/` (the framework test suite). A fix without
+a test is a fix that regresses silently the next time someone refactors.
+
+Cfg-only changes (adding a `name` line, fixing a typo, per-game data)
+do not need framework tests — those are per-game and don't affect any
+general decision path.
+
+Spot-checks against SMWDisX / Ghidra disassembly ARE part of the
+development loop (confirming the ROM actually says what we think it
+says), but disasm inspection alone is not a substitute for a test.
+The test is what prevents the regression; the disasm is what tells
+you what the test should pin.
+
+---
+
 ## 2. NO STDOUT DEBUGGING
 
 - printf/logging is FORBIDDEN for primary debugging
