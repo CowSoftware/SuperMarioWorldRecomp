@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parent.parent
 RECOMP_PY = REPO / 'snesrecomp' / 'recompiler' / 'recomp.py'
 RECOMP_DIR = REPO / 'recomp'
 GEN_DIR = REPO / 'src' / 'gen'
+SRC_DIR = REPO / 'src'
 FUNCS_H = RECOMP_DIR / 'funcs.h'
 ROM_PATH = REPO / 'smw.sfc'
 BANKS = ['00', '01', '02', '03', '04', '05', '07', '0c', '0d']
@@ -30,6 +31,83 @@ _GEN_BODY_RE = re.compile(
     r'^(?P<ret>\w[\w\s\*]*?)\s+(?P<name>\w+)\s*\((?P<params>[^)]*)\)\s*\{\s*//\s*(?P<addr>[0-9a-f]{6})',
     re.MULTILINE,
 )
+
+# Hand-body definition header: any `ret_type fname(params) {` at line start,
+# used to find functions that have a C body outside of src/gen/ or inside
+# a cfg verbatim_start/verbatim_end block. These bodies represent hand-
+# written ABI that funcs.h must preserve over any gen-derived narrowing.
+_HAND_BODY_RE = re.compile(
+    r'^(?:static\s+)?(?P<ret>\w[\w\s\*]*?)\s+(?P<name>\w+)\s*\([^)]*\)\s*\{',
+    re.MULTILINE,
+)
+
+
+def collect_hand_body_fnames() -> set:
+    """Return {fname} for every function with a hand-written body.
+
+    Sources scanned:
+      * src/*.c (excluding src/gen/ which is recompiler output).
+      * recomp/bank*.cfg, inside `verbatim_start ... verbatim_end` blocks
+        (excluding bisect files — those are ad-hoc debug cfgs).
+
+    A function that appears here is one funcs.h cannot safely update
+    from gen alone: its hand body is the ABI oracle, and live-in
+    analysis's known blind spots (mid-body PH/PL scribble-restore,
+    DP-indirect reads) can make gen drop a param the hand body
+    legitimately consumes. For these, _rom_authoritative_sig's union-
+    against-funcs.h path preserves hand-caller-proven params.
+
+    A function NOT in this set has no hand body — only cfg + gen are
+    sources of truth. funcs.h must follow the cfg/gen sig unconditionally
+    (no stale struct returns or widened params from deleted hand
+    wrappers).
+    """
+    fnames: set = set()
+    # src/*.c excluding src/gen/
+    for p in sorted(SRC_DIR.glob('*.c')):
+        try:
+            text = p.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        for m in _HAND_BODY_RE.finditer(text):
+            fname = m.group('name')
+            # Skip common non-function matches (struct initializers labeled
+            # by compound-literal pattern don't match our regex, but a
+            # `static const` array sometimes does — the ret captures the
+            # array's type. Filter obvious false positives.)
+            ret = m.group('ret').strip()
+            if ret in ('if', 'for', 'while', 'switch', 'do', 'return'):
+                continue
+            fnames.add(fname)
+    # recomp/bank*.cfg verbatim blocks
+    for cfg_path in sorted(RECOMP_DIR.glob('bank*.cfg')):
+        if 'bisect' in cfg_path.name:
+            continue
+        try:
+            text = cfg_path.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        in_verbatim = False
+        buf: list = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped == 'verbatim_start':
+                in_verbatim = True
+                buf = []
+                continue
+            if stripped == 'verbatim_end':
+                in_verbatim = False
+                block = '\n'.join(buf)
+                for m in _HAND_BODY_RE.finditer(block):
+                    ret = m.group('ret').strip()
+                    if ret in ('if', 'for', 'while', 'switch', 'do', 'return'):
+                        continue
+                    fnames.add(m.group('name'))
+                buf = []
+                continue
+            if in_verbatim:
+                buf.append(line)
+    return fnames
 
 
 def collect_gen_sigs() -> dict:
@@ -244,6 +322,21 @@ def main() -> int:
         existing = cfg_sigs_by_name.get(fname)
         if existing is None or specificity(sig) > specificity(existing):
             cfg_sigs_by_name[fname] = sig
+    # Split cfg sigs by whether the function has a hand-written body.
+    # Hand bodies are the ABI oracle: live-in analysis has blind spots
+    # (mid-body PH/PL scribble-restore, DP-indirect reads) that can make
+    # gen drop a param the hand body really consumes, so funcs.h unions
+    # against gen (existing behavior).
+    #
+    # For functions WITHOUT a hand body, funcs.h cannot justify keeping
+    # a declaration that disagrees with cfg+gen. Stale struct returns and
+    # widened params from deleted wrappers must be dropped — otherwise
+    # un-skipping a function is impossible without hand-editing funcs.h
+    # (a rule-7 violation). So cfg_sig_before_gen (from cfg.sigs directly)
+    # is retained for those; after the gen overlay, the reconciliation
+    # loop checks hand_body_fnames and picks the right source.
+    cfg_sig_before_gen: dict = dict(cfg_sigs_by_name)
+    hand_body_fnames = collect_hand_body_fnames()
     # Track which fnames have an actual emitted body in a gen file. For those,
     # the body sig is the single source of truth — funcs.h must match exactly,
     # no param union with the existing funcs.h line. Without this override
@@ -275,9 +368,53 @@ def main() -> int:
     rewrites: dict = {}
     for fname, cfg_sig in cfg_sigs_by_name.items():
         fh_sig = funcs_h_sigs.get(fname)
-        if fname in gen_body_fnames and recomp._sig_matches_dispatch_shape(cfg_sig):
-            # Dispatch-capped narrowing — gen body wins verbatim so the
-            # cast type matches the FuncU8 shape.
+        if (fname in gen_body_fnames and fname not in hand_body_fnames
+                and not (fh_sig and recomp._ret_is_pointer(fh_sig))):
+            # No hand body anywhere. funcs.h cannot justify a declaration
+            # that disagrees with the recompiler's two information
+            # sources (cfg and gen). Build the reconciled sig from those
+            # two directly, ignoring funcs.h:
+            #
+            #   * return type: cfg wins. When the cfg author explicitly
+            #     declares a return (typically void, verified against
+            #     SMWDisX), that's ROM truth. A struct return in funcs.h
+            #     is a stale artifact of a deleted hand wrapper; gen
+            #     emitting the same struct is just funcs.h's specificity
+            #     bias feeding back through _reconcile_sig. Without this
+            #     we can't drop stale PointU8/RetAY/etc. once the hand
+            #     wrapper is removed.
+            #
+            #   * parameter list: gen wins. Live-in analysis runs during
+            #     the full regen pipeline; it adds (uint8 k), (uint8 j),
+            #     etc. when the ROM body really consumes them. cfg's
+            #     pre-augment param list can be stale (AUTO entries
+            #     without explicit sig come out as void()).
+            #
+            # Pointer-return exception: funcs.h pointer returns are
+            # preserved (handled by the `not _ret_is_pointer(fh_sig)`
+            # guard above) even without a hand body. Mirrors
+            # recomp._reconcile_sig's pointer-return carve-out: SNES
+            # code communicates pointer returns via DP writes, so the
+            # recompiler emits a void body while funcs.h advertises
+            # the pointer for hand callers (LmHook_* being the common
+            # case).
+            cfg_pre = cfg_sig_before_gen.get(fname, cfg_sig)
+            cfg_ret, _ = recomp.parse_sig(cfg_pre)
+            gen_ret, gen_params = recomp.parse_sig(cfg_sig)  # cfg_sig == gen sig here
+            if not gen_params:
+                reconciled = f'{cfg_ret}()'
+            else:
+                reconciled = (
+                    f'{cfg_ret}('
+                    + ','.join(f'{t}_{n}' for t, n in gen_params)
+                    + ')'
+                )
+        elif fname in gen_body_fnames and recomp._sig_matches_dispatch_shape(cfg_sig):
+            # Dispatch-capped narrowing (hand body exists — hand_body_fnames
+            # catch above didn't fire). Gen body wins verbatim so the
+            # FuncU8 cast type at the dispatch call site matches. Without
+            # this, funcs.h might keep a widened sig that disagrees with
+            # the FuncU8* cast, producing a C compile error.
             reconciled = cfg_sig
         else:
             reconciled = _rom_authoritative_sig(cfg_sig, fh_sig)
