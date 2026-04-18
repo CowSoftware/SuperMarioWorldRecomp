@@ -51,6 +51,50 @@ Bank 03 is saved for last because it contains the densest 65816 tricks
 inline data tables). Each gap fixed in earlier tiers chips away at
 what's required for bank 03.
 
+### Skip classification (bank 01, 02, 03)
+
+- **bank 01/6**: 1 legitimate unreachable-dispatch-target stub
+  (`Spr036_Unused_DataTable` — the ROM's CallSpriteMain dispatch table
+  literally has `dw DATA_01E41F` for sprite $36; if that sprite were
+  ever spawned the ROM would JSR into data. Current no-op stub is the
+  safest treatment. Rule-0-compatible: we emit what the ROM does
+  without pretending the target is real code). The other 5 bank 01
+  skips are struct-return blocked.
+- **bank 02/3**: all struct-return blocked.
+- **bank 03/27**: mix of true stubs (Peach/Bowser battle endings,
+  `{ return 0; }` placeholders that were never implemented — direct
+  rule -1 violations to clean up), struct-return blockers (SubOffscreen,
+  sprite-vs-sprite collision), carry-merge-at-branch
+  (Spr0BD_SlidingNakedBlueKoopa), RTS-twice (Spr0A0_ActivateBowser
+  Battle_ReturnsTwice_*), and mode-7 handlers. Triage needed to sort.
+
+### Known blocker: struct-return override for stale hand bodies
+
+When a cfg un-skips a function that previously had a hand-written
+wrapper returning a struct (PointU8, RetAY, CheckPlatformCollRet) but
+the ROM body actually returns void, the existing reconciliation keeps
+the struct in funcs.h. Callers then mismatch the void gen body.
+
+A naive framework fix (let cfg `sig:void(...)` override funcs.h struct
+returns the same way it already overrides pointer returns) is too
+broad: multiple functions carry divergent sigs across banks (e.g.
+`FindFreeNormalSpriteSlot_HighPriority` has `sig:RetAY()` in bank01,
+`sig:void()` in bank02, `sig:uint8()` in bank03). A blanket override
+picks the wrong winner.
+
+Real fix options (pick when we're ready):
+1. **Cross-bank sig reconciliation pass**: pick one sig per function
+   based on aggregate usage (all caller sites' expected return type).
+   More work; affects the whole sig pipeline.
+2. **Opt-in `force_sig ADDR SIG` cfg directive**: unconditional override
+   for exactly the listed address. Parser + reconcile change; ~30 min.
+3. **Per-function `override_ret` flag on the `sig:` token**: e.g.
+   `sig:void(uint8_k) override`. Cleanest UX, same work as option 2.
+
+Tier 2 (bank 02) and tier 3's struct-return entries (CheckTiltingPlatform
+Collision, Spr0A3, Spr0A7, Spr05F) all need this before the skips
+can drop cleanly. Recommend option 3 when we pick it up.
+
 ## Parallel track: SMWDisX conformance harness
 
 Goal: mechanical per-function pass/fail comparison of our decoded
