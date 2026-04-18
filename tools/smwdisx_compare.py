@@ -1,48 +1,41 @@
 #!/usr/bin/env python3
-"""SMWDisX conformance harness v0.1 (MVP).
+"""SMWDisX conformance harness v0.2.
 
-Check every function declared in recomp/bank*.cfg against SMWDisX's
-label-level classification. For each function, run snesrecomp's decoder
-and flag any instruction whose ADDRESS lands inside a SMWDisX DATA
-region.
+Two checks run per cfg function:
 
-We sidestep the "parse .asm and track PC" problem by using SMWDisX/SMW_U.sym
-as the source of truth for label→address mappings. Labels self-classify
-by prefix:
+  v0.1 (code-vs-data): flag instructions whose address lands inside a
+  SMWDisX DATA region. Uses SMW_U.sym labels to classify addresses.
+  Catches "decoder walked into data" cleanly.
 
-    CODE_XXaabb, ReturnXXaabb -> code
-    DATA_XXaabb, EDATA_XXaabb -> data
-    everything else           -> unknown (don't use for checks)
+  v0.2 (mnemonic parity): parse bank_XX.asm line-by-line into a
+  per-address mnemonic map. For each emitted insn at addr P, compare
+  the mnemonic against what SMWDisX says. A mismatch means the decoder
+  read different bytes than SMWDisX did at the same address.
 
-For each emitted insn at pc P, we find the nearest label addr <= P.
-If that label is DATA and the next label's addr > P, P is inside a
-SMWDisX-declared data region -> FAIL. Otherwise OK.
+PC tracking is anchor-reset at every `LABEL:` line where LABEL matches
+`(CODE|DATA|EDATA|Return|ADDR)_XXaabb` — the anchor immediately corrects
+any drift from mis-sized instructions. Coverage grows as more label-
+anchored blocks are reached.
 
-This is a v0.1 check: catches "decoder walked into data" cleanly, without
-needing to parse .asm instruction lines or track M/X state. Future versions
-can add mnemonic/operand parity by parsing the bank asm text line-by-line
-once the conditional-assembly drift is handled.
+US-ROM branch is selected for all `if ver_is_...(!_VER)` conditional
+blocks. Macros `%BorW`, `%WorB`, `%WorL_X`, `%LorW_X`, `%LorW` expand
+per U-ROM rules (see SMWDisX/macros.asm).
 
-Known v0.1 limitations:
-  * decode_func runs with validate_branches=False, which is what the
-    real pipeline uses for body decode; it walks fall-through past RTS
-    until end_addr. So a FAIL at pc P inside the function's body is a
-    real bug, but a FAIL at a pc well past the stated end is often
-    just the decoder following fall-through into the next function.
-    Filter by `pc - addr` relative offset when triaging.
-  * We skip `func` entries that are in `cfg.skip` — no gen body exists
-    to compare against. Un-skip a function to get it through the
-    harness.
-  * Non-prefixed labels (TilesetMAP16Loc, BombExplosionX, etc.) are
-    classified 'unknown' — they contribute nothing to FAIL detection.
-    Coverage grows if later versions parse bank_XX.asm for the first
-    non-label line after each such label.
+Known v0.2 limitations:
+  * Operand parity is NOT checked yet — SMWDisX operands are symbolic
+    labels while ours are literal hex. v0.3 will resolve via SMW_U.sym.
+  * M/X state is NOT tracked. For immediate-mode mnems without suffix
+    (rare in SMWDisX — most carry .B/.W), we fall back to literal hex
+    width.
+  * `%insert_empty(...)` macro is skipped (it emits version-dependent
+    fill bytes that we treat as data).
+  * `con($J,$U,$SS,$E0,$E1)` picker resolves to index 1 (U).
 
 Usage:
     python tools/smwdisx_compare.py                # all banks
     python tools/smwdisx_compare.py --bank 02      # one bank
     python tools/smwdisx_compare.py --func NAME    # one function
-    python tools/smwdisx_compare.py --verbose      # show per-insn detail on FAIL
+    python tools/smwdisx_compare.py --verbose      # per-FAIL detail
 """
 from __future__ import annotations
 
@@ -120,6 +113,285 @@ def find_label_for_addr(labels: List[Label], pc: int) -> Optional[Tuple[Label, O
 
 
 # ---------------------------------------------------------------------------
+# SMWDisX asm parser for v0.2 mnemonic parity
+# ---------------------------------------------------------------------------
+
+# Instructions that are always 1 byte (no operand).
+_ONE_BYTE_MNEMS = {
+    'INX', 'DEX', 'INY', 'DEY',
+    'TAX', 'TAY', 'TXA', 'TYA', 'TSX', 'TXS', 'TYX', 'TXY',
+    'TCS', 'TSC', 'TCD', 'TDC', 'TCE',
+    'PHA', 'PLA', 'PHX', 'PLX', 'PHY', 'PLY', 'PHB', 'PLB', 'PHK',
+    'PHP', 'PLP', 'PHD', 'PLD',
+    'CLC', 'SEC', 'CLD', 'SED', 'CLV', 'CLI', 'SEI', 'XCE', 'NOP',
+    'RTS', 'RTL', 'RTI', 'STP', 'WAI', 'XBA',
+}
+
+# 2-byte PC-relative branches.
+_BRANCH_2 = {'BEQ', 'BNE', 'BCS', 'BCC', 'BMI', 'BPL', 'BVS', 'BVC', 'BRA'}
+
+# 2-byte immediate-only ops.
+_IMM_2 = {'REP', 'SEP', 'COP', 'BRK', 'WDM'}
+
+# 3-byte relative (BRL) or PER.
+_REL16_3 = {'BRL', 'PER'}
+
+# 4-byte long jumps/calls.
+_LONG_4 = {'JSL', 'JML'}
+
+# Label name prefixes that encode an address in hex (6 hex digits).
+_LABEL_ADDR_RE = re.compile(r'^(?:CODE|DATA|EDATA|Return|ADDR)_([0-9A-Fa-f]{6})$')
+
+# Macro expansion map for U ROM (!_VER=!__VER_U).
+# Each entry maps `macro_name -> (suffix, addressing_form)`.
+# addressing_form: '' = just <addr>, ',X' = <addr>,X
+_U_MACROS = {
+    'BorW':    ('.W', ''),    # addr  (.B if J, .W otherwise → .W for U)
+    'WorB':    ('.B', ''),    # addr  (.W if J, .B otherwise → .B for U)
+    'WorL_X':  ('.L', ',X'),  # addr,X (.W if J, .L otherwise → .L for U)
+    'LorW_X':  ('.W', ',X'),  # addr,X (.L if J, .W otherwise → .W for U)
+    'LorW':    ('.W', ''),    # addr  (.L if J, .W otherwise → .W for U)
+}
+
+
+def _insn_size(mnem: str, suffix: str, operand: str) -> Optional[int]:
+    """Compute encoded instruction size in bytes, or None if we can't tell."""
+    m = mnem.upper()
+    # Accumulator form.
+    if m in ('ASL', 'LSR', 'ROL', 'ROR', 'INC', 'DEC'):
+        if suffix == '' and operand.strip().upper() == 'A':
+            return 1
+    if m in _ONE_BYTE_MNEMS and not operand.strip():
+        return 1
+    if m in _BRANCH_2:
+        return 2
+    if m in _REL16_3:
+        return 3
+    if m in _IMM_2:
+        return 2
+    if m in _LONG_4:
+        return 4
+    if m == 'JMP':
+        # JMP abs, JMP (abs), JMP (abs,X) — all 3. JMP [abs] (= JML) = 4.
+        if operand.strip().startswith('['):
+            return 4
+        return 3
+    if m == 'JSR':
+        return 3  # JSR abs or JSR (abs,X)
+    if m == 'PEA':
+        return 3
+    if m == 'PEI':
+        return 2
+    if m in ('MVN', 'MVP'):
+        return 3
+    # Explicit width suffix wins for normal load/store/etc.
+    if suffix == '.B':
+        return 2
+    if suffix == '.W':
+        return 3
+    if suffix == '.L':
+        return 4
+    # No suffix — fall back to operand inspection.
+    op = operand.strip()
+    if op.startswith('#$'):
+        hex_digits = op[2:]
+        # Trim trailing comma/close-paren artifacts (shouldn't happen for imm).
+        hex_digits = re.sub(r'[^0-9A-Fa-f]', '', hex_digits)
+        if len(hex_digits) <= 2:
+            return 2
+        return 3
+    # Bare mnemonic (no operand visible) → probably 1-byte.
+    if not op:
+        return 1
+    # Safe fallback: assume ABS (3) — the anchor reset on the next
+    # CODE_XX label will correct if we got it wrong.
+    return 3
+
+
+_COMMENT_RE = re.compile(r';.*$')
+_ORG_RE = re.compile(r'^\s*ORG\s+\$([0-9A-Fa-f]+)', re.IGNORECASE)
+_LABEL_LINE_RE = re.compile(r'^([A-Za-z_][\w]*)\s*:')
+_INSTR_RE = re.compile(
+    r'^\s*'
+    r'(?P<mnem>[A-Za-z]{2,4})'
+    r'(?P<suffix>\.[BWL])?'
+    r'(?:\s+(?P<operand>[^;]*?))?'
+    r'\s*$'
+)
+_MACRO_RE = re.compile(
+    r'^\s*%(?P<name>\w+)\((?P<args>[^)]*)\)\s*$'
+)
+_DATA_RE = re.compile(r'^\s*(d[bwdl])\s+(.+)$', re.IGNORECASE)
+
+
+def _eval_ver_predicate(expr: str) -> Optional[bool]:
+    """Evaluate a `ver_is_XXX(!_VER)` predicate for the U ROM."""
+    m = re.match(r'ver_is_(\w+)\s*\(\s*!_VER\s*\)', expr.strip())
+    if not m:
+        return None
+    # U-ROM truth table (see SMWDisX/macros.asm head).
+    u = {
+        'japanese': False, 'english': True,
+        'hires': False, 'lores': True,
+        'pal': False, 'ntsc': True,
+        'arcade': False, 'console': True,
+        'english_console': True,
+        'has_rev_gfx': False,  # J or E1
+    }
+    return u.get(m.group(1))
+
+
+def _expand_macro(macro_name: str, args: str) -> Optional[Tuple[str, str, str]]:
+    """Expand a macro call to (mnem, suffix, operand_text) for U ROM.
+
+    Returns None for macros we don't expand (data-emitting ones, etc.)."""
+    macro_name = macro_name.strip()
+    if macro_name not in _U_MACROS:
+        return None
+    suffix, addr_form = _U_MACROS[macro_name]
+    parts = [p.strip() for p in args.split(',', 1)]
+    if len(parts) != 2:
+        return None
+    cmd, addr = parts
+    return (cmd.upper(), suffix, f'{addr}{addr_form}')
+
+
+def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
+    """Parse SMWDisX/bank_XX.asm into {full_addr: (mnem, suffix)}.
+
+    Only code addresses are recorded. Data regions (db/dw/dl/dd and
+    unknown directives that advance PC) are skipped.
+    """
+    bank = int(bank_hex, 16)
+    path = SMWDISX / f'bank_{bank_hex.upper()}.asm'
+    if not path.exists():
+        return {}
+
+    out: Dict[int, Tuple[str, str]] = {}
+    pc: Optional[int] = None
+    # Nested conditional stack: each entry is (is_active, has_else_fired).
+    cond_stack: List[Tuple[bool, bool]] = []
+
+    def is_active() -> bool:
+        return all(a for a, _ in cond_stack)
+
+    with path.open(encoding='utf-8', errors='replace') as fp:
+        for raw in fp:
+            line = raw.rstrip('\n')
+            stripped = _COMMENT_RE.sub('', line).rstrip()
+            if not stripped.strip():
+                continue
+            body = stripped.strip()
+            low = body.lower()
+
+            # Conditional directives.
+            if low.startswith('if '):
+                verdict = _eval_ver_predicate(body[3:])
+                cond_stack.append((verdict if verdict is not None else False, False))
+                continue
+            if low == 'else':
+                if cond_stack:
+                    active, had_else = cond_stack.pop()
+                    cond_stack.append((not active, True))
+                continue
+            if low == 'endif':
+                if cond_stack:
+                    cond_stack.pop()
+                continue
+            if not is_active():
+                continue
+
+            # ORG directive.
+            m = _ORG_RE.match(stripped)
+            if m:
+                pc = int(m.group(1), 16)
+                continue
+
+            # Label line (anchor-reset PC if name encodes address).
+            m = _LABEL_LINE_RE.match(body)
+            if m:
+                lbl = m.group(1)
+                am = _LABEL_ADDR_RE.match(lbl)
+                if am:
+                    pc = int(am.group(1), 16)
+                # Labels that don't encode address just stay — they mark
+                # positions that later code/data entries can reference,
+                # but don't tell us where we are.
+                continue
+            # Anonymous labels: just "+", "-", "++", "--".
+            if re.match(r'^[+\-]+$', body):
+                continue
+
+            # Macro invocation.
+            m = _MACRO_RE.match(body)
+            if m:
+                expanded = _expand_macro(m.group('name'), m.group('args'))
+                if expanded and pc is not None:
+                    mnem, suffix, operand = expanded
+                    size = _insn_size(mnem, suffix, operand)
+                    if size is not None:
+                        if (pc >> 16) == bank:
+                            out[pc] = (mnem, suffix)
+                        pc += size
+                # Macros we don't expand (e.g. %insert_empty) advance PC
+                # by an unknown amount — we can't track through them, so
+                # leave pc None so we wait for the next anchor. But
+                # %insert_empty explicitly emits data, so marking pc=None
+                # is the correct conservative choice.
+                else:
+                    pc = None
+                continue
+
+            # Data directives.
+            m = _DATA_RE.match(body)
+            if m:
+                directive = m.group(1).lower()
+                items_raw = m.group(2)
+                # Skip anything after a line-continuing comment marker;
+                # comments have been stripped above.
+                items = [x for x in items_raw.split(',') if x.strip()]
+                size_per = {'db': 1, 'dw': 2, 'dl': 3, 'dd': 4}[directive]
+                if pc is not None:
+                    pc += size_per * len(items)
+                continue
+
+            # Assembler directives we can't track through — invalidate pc
+            # until the next anchor.
+            if body.split(None, 1)[0].lower() in (
+                    'incsrc', 'incbin', 'table', 'pushtable', 'pulltable',
+                    'warnpc', 'check', 'autoclean', 'freespace',
+                    'namespace', 'pushbase', 'pullbase', 'base',
+                    'fillbyte', 'fill', 'pad', 'optimize',
+                    'assert', 'print', 'expression', 'math',
+                    'define', 'undef', 'while', 'macro', 'endmacro',
+                    'function'):
+                pc = None
+                continue
+
+            # Instruction line.
+            m = _INSTR_RE.match(body)
+            if m:
+                mnem = m.group('mnem').upper()
+                suffix = m.group('suffix') or ''
+                operand = m.group('operand') or ''
+                size = _insn_size(mnem, suffix, operand)
+                if size is None:
+                    pc = None
+                    continue
+                if pc is not None and (pc >> 16) == bank:
+                    out[pc] = (mnem, suffix)
+                if pc is not None:
+                    pc += size
+                continue
+
+            # Something we don't understand — invalidate pc until the
+            # next label anchor.
+            pc = None
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
 
@@ -152,7 +424,9 @@ class FuncResult:
     first_divergence: Optional[Tuple[int, str]] = None  # (pc, detail)
 
 
-def check_function(rom: bytes, cfg, labels: List[Label], fname: str,
+def check_function(rom: bytes, cfg, labels: List[Label],
+                   mnem_map: Dict[int, Tuple[str, str]],
+                   fname: str,
                    addr: int, eovr: Optional[int], mo) -> FuncResult:
     full_addr = (cfg.bank << 16) | addr
     if fname in cfg.skip:
@@ -185,27 +459,61 @@ def check_function(rom: bytes, cfg, labels: List[Label], fname: str,
         if entry_label.addr != full_addr:
             entry_label = None
 
-    # For each emitted insn, find the SMWDisX region it falls in.
+    # For each emitted insn, run two checks in order:
+    #   (A) v0.1 code-vs-data: if addr lands inside a SMWDisX DATA label
+    #       region, FAIL.
+    #   (B) v0.2 mnemonic parity: if mnem_map has an entry at addr and
+    #       it disagrees with our mnemonic, FAIL.
     for ins in insns:
         pc = ins.addr
         info = find_label_for_addr(labels, pc)
-        if info is None:
-            continue
-        label, nxt = info
-        if label.kind != 'data':
-            continue
-        # Is pc inside this DATA region? Region extends from label.addr
-        # to nxt.addr (exclusive) if nxt exists.
-        end_of_region = nxt.addr if nxt else 0x1000000
-        if pc < end_of_region:
+        if info is not None:
+            label, nxt = info
+            if label.kind == 'data':
+                end_of_region = nxt.addr if nxt else 0x1000000
+                if pc < end_of_region:
+                    return FuncResult(
+                        fname, cfg.bank, addr, 'FAIL',
+                        f'decoded into SMWDisX {label.name} at ${pc:06X}',
+                        first_divergence=(
+                            pc,
+                            f'SMWDisX={label.name} region '
+                            f'[${label.addr:06X}..${end_of_region:06X}) '
+                            f'ours={ins.mnem}'))
+
+        # v0.2: mnemonic parity. Only check when SMWDisX has an anchor.
+        smwdisx_ent = mnem_map.get(pc)
+        if smwdisx_ent is not None:
+            smwdisx_mnem, _suffix = smwdisx_ent
+            if _mnems_agree(smwdisx_mnem, ins.mnem):
+                continue
             return FuncResult(
                 fname, cfg.bank, addr, 'FAIL',
-                f'decoded into SMWDisX {label.name} at ${pc:06X}',
-                first_divergence=(pc,
-                                  f'SMWDisX={label.name} region '
-                                  f'[${label.addr:06X}..${end_of_region:06X}) '
-                                  f'ours={ins.mnem}'))
+                f'mnem mismatch at ${pc:06X}: SMWDisX={smwdisx_mnem}, '
+                f'ours={ins.mnem}',
+                first_divergence=(
+                    pc,
+                    f'SMWDisX={smwdisx_mnem}, ours={ins.mnem}'))
     return FuncResult(fname, cfg.bank, addr, 'PASS')
+
+
+def _mnems_agree(smwdisx: str, ours: str) -> bool:
+    """Mnemonic equivalence for harness purposes.
+
+    SMWDisX uses canonical Apple/WLA-DX naming; our decoder matches
+    exactly for all standard 65816 mnemonics. The only cases that need
+    normalization:
+
+      * BRK vs STP (both 1-byte in their respective modes — not an alias)
+      * JMP.L / JML: SMWDisX writes JML for long-addr JMP ($5C). Our
+        decoder uses JMP with LONG mode. Treat them as equivalent at
+        the mnem level (operand check later).
+    """
+    if smwdisx == ours:
+        return True
+    if {smwdisx, ours} == {'JML', 'JMP'}:
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -216,14 +524,22 @@ def run(bank_filter: Optional[str], func_filter: Optional[str], verbose: bool) -
     rom = load_rom(str(ROM_PATH))
     labels = load_symbols()
     cfgs = load_cfgs(rom)
+    # Parse every targeted bank once, cache mnem_map.
+    mnem_maps: Dict[str, Dict[int, Tuple[str, str]]] = {}
+    for bank_hex in cfgs:
+        if bank_filter and bank_hex != bank_filter:
+            continue
+        mnem_maps[bank_hex] = parse_bank_mnems(bank_hex)
     results: List[FuncResult] = []
     for bank_hex, cfg in cfgs.items():
         if bank_filter and bank_hex != bank_filter:
             continue
+        mnem_map = mnem_maps.get(bank_hex, {})
         for (fname, faddr, _sig, eovr, mo, _hints) in cfg.funcs:
             if func_filter and fname != func_filter:
                 continue
-            res = check_function(rom, cfg, labels, fname, faddr, eovr, mo)
+            res = check_function(rom, cfg, labels, mnem_map,
+                                 fname, faddr, eovr, mo)
             results.append(res)
 
     # Per-bank rollup.
