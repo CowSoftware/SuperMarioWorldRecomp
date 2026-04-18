@@ -90,19 +90,43 @@ Current warning count: ~58. Two work items:
   doesn't detect it because it intentionally skips PH/PL as register
   reads. Only pursue if harness v0.2 surfaces false narrowings.
 
-## Queued: harness-flagged FAIL triage (after v0.2)
+## Harness-flagged FAIL triage — status
 
-v0.1 reports 47 FAILs spread across all banks. Each is a real decoder
-bug (walked past RTS into data). After v0.2 lands and likely uncovers
-more, work through them by bank:
-- bank 00: 0 (100%)
-- bank 01: 15
-- bank 02: 8
-- bank 03: 5
-- bank 04: 2
-- bank 05: 2
-- bank 0c: 9
-- bank 0d: 6
+47 FAILs → 3 FAILs / 99.9% pass rate (2054/2057) after harness
+corrections (NO cfg changes):
+
+ 1. Harness now calls `discover_bank` + `promote_sub_entries` before
+    decoding, matching the real regen pipeline. Without that step the
+    harness's `known_func_addrs` was incomplete, so dispatch-entry
+    acceptance was looser (non-known entries treated as maybe-real,
+    causing the decoder to over-read past table ends in the harness
+    but not in the real build).
+ 2. Code-vs-data check now uses the parser's per-byte `data_addrs`
+    set (from db/dw/dl/dd directives) instead of label-region lookup.
+    The label-based check false-positived when an anonymous-labeled
+    code block (`+`/`-`) sat between a `DATA_XX` label and the next
+    `CODE_XX` label — not in SMW_U.sym.
+ 3. `dispatch_known_addrs` now threaded into decode_func so the Issue
+    A terminal-dispatch fix applies to harness decodes too.
+
+Remaining 3 FAILs are all genuine discover.py over-promotion —
+addresses that landed in data regions because of byte-pattern matches
+or dispatch-entry mis-sizing:
+ - `ProcessClusterSprites_02F821` at $02F821 (cfg `name` pointing at data)
+ - `GameMode12_PrepareLevel_03DAE2` at $03DAE2 (cfg `func` pointing at data)
+ - `auto_04_859F` at $04859F (auto-promoted into a dispatch table interior)
+
+Each is a cfg or discover.py issue that needs investigation — NOT a
+decoder bug. Low priority (99.9% pass rate).
+
+### Rule-0 lesson learned
+During this triage I added cfg `end:`, `name`, and `exclude_range`
+entries as "simple fixes" for each FAIL. Every one of them would
+have been a rule-0 violation: they encoded facts the recompiler
+derives from ROM (dispatch table length, end of function, data
+boundary). The correct fix was a framework change to the harness's
+pipeline, which collapsed 44 of the 47 FAILs without touching cfg.
+Captured in auto-memory: `feedback_cfg_is_last_resort.md`.
 
 ## Hard rules in force
 
