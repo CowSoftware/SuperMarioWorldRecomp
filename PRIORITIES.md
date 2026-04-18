@@ -51,6 +51,29 @@ Bank 03 is saved for last because it contains the densest 65816 tricks
 inline data tables). Each gap fixed in earlier tiers chips away at
 what's required for bank 03.
 
+## Parallel track: SMWDisX conformance harness
+
+Goal: mechanical per-function pass/fail comparison of our decoded
+65816 instruction stream against SMWDisX's human-verified one. Turn
+the spot-check against `SMWDisX/bank_XX.asm` that we do by hand into
+a continuous regression gate.
+
+MVP (v0.1): parse SMWDisX to extract per-address code/data classification
+and per-function instruction mnemonics; decode the same addresses
+via `snesrecomp.recomp.decode_func`; report mismatches. Starts with
+the dominant failure class — **our decoder walked into SMWDisX-labeled
+data** — and grows from there.
+
+Lives at `tools/smwdisx_compare.py`. Not a blocker for skip-elimination;
+surfaces which functions need recompiler work.
+
+Growth plan:
+- v0.1: code-vs-data boundary check (decode_into_data errors)
+- v0.2: per-instruction mnemonic + operand parity
+- v0.3: M/X state tracking
+- v0.4: macro + conditional-assembly handling (U ROM branch only)
+- v0.5: repo-wide pass-rate dashboard in CI
+
 ## Queued: warning elimination (after skips)
 
 - **Issue B — FuncU8J / FuncU8A / FuncU8JA union-sig dispatch**. Current
