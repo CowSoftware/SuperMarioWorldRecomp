@@ -87,6 +87,49 @@ If ANY rule is violated:
 
 ## 0. THE RECOMPILER IS THE AUTHORITY — CFG IS NOT
 
+### 0a. The north star is the framework, not the test suite
+
+**What we are building:** a game-agnostic static SNES recompiler. Tests,
+warning counts, harness pass rates, and SMW runtime parity are
+**instruments** we use to measure whether the framework is holistically
+correct. They are not the goal.
+
+When a test fails, a warning fires, or a harness flags a FAIL: the
+question is ALWAYS "what does this tell us about the framework's
+completeness?" The question is NEVER "what's the fastest way to make
+this green?"
+
+Turning a number green by encoding a fact into per-game cfg that the
+framework could derive from ROM is not progress — it is *avoidance* of
+the architectural problem the failing signal was trying to surface.
+Next time that same pattern appears in game #2 / #3 / #4, we'll
+re-discover it, and we'll have accumulated N game-specific cfg shims
+in the interim. Each accumulated shim is a future confusion.
+
+### 0b. Bias toward holistic completeness, never toward speed
+
+There is no acceptable tradeoff where "it's faster to fix this in
+cfg" wins. The framework fix is the only one that amortizes. The
+cfg shim is paid N times (once per game that hits the same pattern).
+
+Each problem encountered during a session is a probe into the
+framework's gaps. Before applying any fix, hold the framework's shape
+in mind: what architectural cleanup does this problem imply? Solve
+that, not the one instance. The one-instance fix is the tempting
+shortcut; the architectural fix is the one that compounds.
+
+Corollaries:
+- **Do not optimize for green-by-next-commit.** A failing test that
+  reveals a real architectural gap is more valuable than the same
+  test silently passing via a band-aid.
+- **The harness exists to surface framework gaps**, not to be zeroed
+  out. A FAIL is a hypothesis about where the framework is incomplete.
+- **Each cfg/Python edit is a commitment** to a design. If the edit
+  encodes something the framework could derive, you have committed to
+  re-encoding it for every future game. Reject that commitment.
+
+### 0c. The recompiler is the authority; cfg is last-resort
+
 The recompiler (recomp.py + runtime) is the ONLY authoritative description
 of how 65816 code becomes C. Every correctness claim must be something the
 recompiler can derive from the ROM itself.
@@ -97,13 +140,12 @@ cannot reconstruct from the ROM alone. Concretely: data-region boundaries
 convention depends on external context (e.g. WRAM struct returns), and
 rare hints that cannot be inferred statically.
 
-**The game-agnostic test (see NORTH STAR above):** Before adding any cfg
-line, ask: "if I were starting game #2 (Mega Man X, Contra III, F-Zero,
-whatever) tomorrow, would I need to write this same line for that game
-too?" If YES → the fix belongs in the recompiler, not cfg. If NO → it's
-genuinely per-game data and cfg is correct. Cfg lines that encode
-patterns are bugs; cfg lines that encode facts about one specific ROM
-are fine.
+**The game-agnostic test:** Before adding any cfg line, ask: "if I were
+starting game #2 (Mega Man X, Contra III, F-Zero, whatever) tomorrow,
+would I need to write this same line for that game too?" If YES → the
+fix belongs in the recompiler, not cfg. If NO → it's genuinely per-game
+data and cfg is correct. Cfg lines that encode patterns are bugs; cfg
+lines that encode facts about one specific ROM are fine.
 
 This means:
 - A `dispatch`, `skip`, `jsl_dispatch*`, or similar cfg hint is SUSPECT.
