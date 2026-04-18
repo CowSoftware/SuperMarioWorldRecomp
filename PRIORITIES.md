@@ -6,122 +6,78 @@ ROM, wrong calling convention, silent behavior drift. The recompiler is
 the only authoritative translator; every line we can retire to gen is a
 line we can't have a bug in.
 
-Work is tracked top-to-bottom. Complete a tier before starting the next.
-Within a tier, commit after each landing so rollback is cheap.
+Work is tracked top-to-bottom. Complete a section before starting the
+next. Within a section, commit after each landing so rollback is cheap.
 
 ---
 
 ## Done
 
-- **Issue A — dispatch_known_addrs in augment pass**. `recomp.py` no longer
-  decodes dispatch-handler bodies into the caller's insn list during
-  `_augment_cfg_sigs_one_pass`, cutting phantom live-in cascade. Shipped
-  with `test_decode_func_terminates_dispatch_when_all_handlers_known`.
-- **Option 1 — SMW_DISABLE_LM compile-time toggle**. `HAS_LM_FEATURE(i)`
-  and `HAS_HACK(i)` collapse to `0` when `SMW_DISABLE_LM` is defined
+- **Issue A — dispatch_known_addrs in augment pass** (snesrecomp c0074c2).
+  `recomp.py` no longer decodes dispatch-handler bodies into the caller's
+  insn list during `_augment_cfg_sigs_one_pass`, cutting phantom live-in
+  cascade. Shipped with `test_decode_func_terminates_dispatch_when_all_
+  handlers_known`.
+- **SMW_DISABLE_LM compile-time toggle**. `HAS_LM_FEATURE(i)` and
+  `HAS_HACK(i)` collapse to `0` when `SMW_DISABLE_LM` is defined
   (default ON in all four vcxproj configs). MSVC dead-codes the Lunar
   Magic emulation layer out of the binary. Undefining the macro restores
   LM-patched-ROM support.
+- **SMWDisX harness v0.1** (`tools/smwdisx_compare.py`). Parses
+  `SMW_U.sym` for per-label code/data classification; runs `decode_func`
+  on every cfg func; flags instructions whose addresses land inside
+  SMWDisX-declared DATA regions. Auto-detects dispatch helpers before
+  decoding. Current baseline: 97.4% pass rate, 47 FAILs (decoder walks
+  into data — separate triage bucket from skips).
+- **Skip elimination — all four tiers complete**. 38 → 1 skip across
+  the codebase. The one remaining skip (`Spr036_Unused_DataTable` in
+  bank 01) is a legitimate no-op: the ROM's CallSpriteMain dispatch
+  table has `dw DATA_01E41F` for sprite $36, which points at real data
+  bytes. Empty body matches observed ROM semantics (rule -1 compatible).
+  - Tier 1 (bank 0c): 2 → 0 — phantom auto_XX deletions
+  - Tier 2 (bank 02): 3 → 0 — struct-return via hand-body-aware sync
+  - Tier 3 (bank 01): 6 → 1 — struct-return family (CheckTilting,
+    Spr0A7, Spr05F, Spr029_IggyLarry) + carry-return sigs
+  - Tier 4 (bank 03): 27 → 0 — clipping/collision, SubOffscreen
+    multi-entry, phantom dispatch fakes (Firework table cap), Mode7
+    tilemap/sprite anim, Peach/Bowser/KoopaKid/GameMode12, Spr0BD
+    carry-merge, Spr0A0 ReturnsTwice (PLA/PLA/RTS auto-detected by
+    recompiler — no framework work needed)
+- **Framework machinery that landed**: hand-body-aware reconciliation
+  in `sync_funcs_h.py` (scans `src/*.c` + cfg verbatim blocks; when no
+  hand body exists, funcs.h rebuilds from cfg ret-type + gen params,
+  filtering out non-register pointer/struct params so stale sigs get
+  dropped). Pinned by 3 tests in `test_sync_funcs_h.py`.
 
-## Active: skip elimination (→ all-native)
+## Active: SMWDisX harness v0.2 — mnemonic + operand parity
 
-Drive every active `skip` entry in `recomp/bank*.cfg` to deletion by
-teaching the recompiler whatever it's missing. Procedure for each:
+v0.1 catches "decoder walked into data." v0.2 catches "decoder read a
+different instruction than SMWDisX did at the same address." Needed
+because v0.1 passes don't prove instruction correctness — they only
+prove we're at least in the code region.
 
-1. Remove the `skip` line from cfg
-2. Regen bank, build
-3. If build fails or gen body disagrees with SMWDisX → fix the recompiler
-   (framework fix, shipped with test per rule 1b)
-4. Delete the hand-written body from `src/smw_*.c`
-5. Regen, build, verify runtime parity past prior frame baseline
-6. Commit
-
-Attack order (easy → hard, smallest banks first to surface recompiler
-gaps cheaply):
-
-| Tier | Bank | Skip count | Rationale                                           |
-|------|------|------------|-----------------------------------------------------|
-| 1    | 0c   | 2          | `auto_0CADCA`, `auto_0CADD6` — credits/ending only  |
-| 2    | 02   | 3          | `HandleExtendedSpriteLevelCollision`, Spr0A3 ×2     |
-| 3    | 01   | 6          | Unused data table + collision/sprite hand bodies    |
-| 4    | 03   | 27         | Mode-7, Bowser, Peach, SubOffscreen, sprite-vs-sprite |
-
-Bank 03 is saved for last because it contains the densest 65816 tricks
-(mode-7 transforms, PLX-as-return-addr, multi-entry sprite handlers,
-inline data tables). Each gap fixed in earlier tiers chips away at
-what's required for bank 03.
-
-### Skip classification (bank 01, 02, 03)
-
-- **bank 01/6**: 1 legitimate unreachable-dispatch-target stub
-  (`Spr036_Unused_DataTable` — the ROM's CallSpriteMain dispatch table
-  literally has `dw DATA_01E41F` for sprite $36; if that sprite were
-  ever spawned the ROM would JSR into data. Current no-op stub is the
-  safest treatment. Rule-0-compatible: we emit what the ROM does
-  without pretending the target is real code). The other 5 bank 01
-  skips are struct-return blocked.
-- **bank 02/3**: all struct-return blocked.
-- **bank 03/27**: mix of true stubs (Peach/Bowser battle endings,
-  `{ return 0; }` placeholders that were never implemented — direct
-  rule -1 violations to clean up), struct-return blockers (SubOffscreen,
-  sprite-vs-sprite collision), carry-merge-at-branch
-  (Spr0BD_SlidingNakedBlueKoopa), RTS-twice (Spr0A0_ActivateBowser
-  Battle_ReturnsTwice_*), and mode-7 handlers. Triage needed to sort.
-
-### Known blocker: struct-return override for stale hand bodies
-
-When a cfg un-skips a function that previously had a hand-written
-wrapper returning a struct (PointU8, RetAY, CheckPlatformCollRet) but
-the ROM body actually returns void, the existing reconciliation keeps
-the struct in funcs.h. Callers then mismatch the void gen body.
-
-A naive framework fix (let cfg `sig:void(...)` override funcs.h struct
-returns the same way it already overrides pointer returns) is too
-broad: multiple functions carry divergent sigs across banks (e.g.
-`FindFreeNormalSpriteSlot_HighPriority` has `sig:RetAY()` in bank01,
-`sig:void()` in bank02, `sig:uint8()` in bank03). A blanket override
-picks the wrong winner.
-
-Real fix options (pick when we're ready):
-1. **Cross-bank sig reconciliation pass**: pick one sig per function
-   based on aggregate usage (all caller sites' expected return type).
-   More work; affects the whole sig pipeline.
-2. **Opt-in `force_sig ADDR SIG` cfg directive**: unconditional override
-   for exactly the listed address. Parser + reconcile change; ~30 min.
-3. **Per-function `override_ret` flag on the `sig:` token**: e.g.
-   `sig:void(uint8_k) override`. Cleanest UX, same work as option 2.
-
-Tier 2 (bank 02) and tier 3's struct-return entries (CheckTiltingPlatform
-Collision, Spr0A3, Spr0A7, Spr05F) all need this before the skips
-can drop cleanly. Recommend option 3 when we pick it up.
-
-## Parallel track: SMWDisX conformance harness
-
-Goal: mechanical per-function pass/fail comparison of our decoded
-65816 instruction stream against SMWDisX's human-verified one. Turn
-the spot-check against `SMWDisX/bank_XX.asm` that we do by hand into
-a continuous regression gate.
-
-MVP (v0.1): parse SMWDisX to extract per-address code/data classification
-and per-function instruction mnemonics; decode the same addresses
-via `snesrecomp.recomp.decode_func`; report mismatches. Starts with
-the dominant failure class — **our decoder walked into SMWDisX-labeled
-data** — and grows from there.
-
-Lives at `tools/smwdisx_compare.py`. Not a blocker for skip-elimination;
-surfaces which functions need recompiler work.
+Design: parse each `bank_XX.asm` line-by-line to extract
+`(addr, mnem, operand)` per instruction. Compare against `decode_func`
+output. Handle:
+- Macros (`%BorW(LDA, addr)`, `%insert_empty`, `%WorB`, etc.) — expand
+  from `SMWDisX/macros.asm` by substitution.
+- `if ver_is_XXX(!_VER)` conditional blocks — select U-ROM branch (done
+  in v0.1's prototype parser, port properly).
+- `con($XX,$XX,$XX,$XX,$XX)` per-version constants — pick [1] for U.
+- Anonymous labels (`+`, `-`, `++`, `--`) — re-resolve per basic block.
 
 Growth plan:
-- v0.1: code-vs-data boundary check (decode_into_data errors)
-- v0.2: per-instruction mnemonic + operand parity
+- v0.2: mnemonic + operand parity (this phase)
 - v0.3: M/X state tracking
-- v0.4: macro + conditional-assembly handling (U ROM branch only)
+- v0.4: full macro + conditional handling
 - v0.5: repo-wide pass-rate dashboard in CI
 
-## Queued: warning elimination (after skips)
+## Queued: warning elimination
 
-- **Issue B — FuncU8J / FuncU8A / FuncU8JA union-sig dispatch**. Current
-  dispatch-target guard at `recomp.py:1627` caps `FuncU8*` handlers to
+Current warning count: ~58. Two work items:
+
+- **Issue B — FuncU8J / FuncU8A / FuncU8JA union-sig dispatch**.
+  Dispatch-target guard at `recomp.py:1627` caps `FuncU8*` handlers to
   `void()` or `void(uint8 k)`. Collect dispatch targets, compute union
   live-in across handlers, widen all handlers in each table to the
   union sig, emit matching cast type. Target: the remaining
@@ -132,7 +88,21 @@ Growth plan:
   `…PHX ; TYX ; JSL ; PLX ; <read X>` appears mid-body, entry-X is
   legitimately live-in but current `_insn_reg_use` (recomp.py:499)
   doesn't detect it because it intentionally skips PH/PL as register
-  reads. Only pursue if skip-elimination surfaces false narrowings.
+  reads. Only pursue if harness v0.2 surfaces false narrowings.
+
+## Queued: harness-flagged FAIL triage (after v0.2)
+
+v0.1 reports 47 FAILs spread across all banks. Each is a real decoder
+bug (walked past RTS into data). After v0.2 lands and likely uncovers
+more, work through them by bank:
+- bank 00: 0 (100%)
+- bank 01: 15
+- bank 02: 8
+- bank 03: 5
+- bank 04: 2
+- bank 05: 2
+- bank 0c: 9
+- bank 0d: 6
 
 ## Hard rules in force
 
