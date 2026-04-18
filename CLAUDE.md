@@ -587,8 +587,8 @@ Before doing ANY work, Claude MUST explicitly state:
 
 1. I have read `CLAUDE.md` and `DEBUG.md`
 2. I will not guess
-3. I will use Ghidra for literal code truth
-4. I will use smw-rev as a behavioral oracle where appropriate
+3. I will use **SMWDisX** (`SMWDisX/bank_XX.asm`) as the primary literal-code oracle — it is 1:1 machine-code truth (M/X state, function boundaries, data/code splits, dispatch tables, bank addressing). Ghidra is a secondary literal oracle when SMWDisX is ambiguous; Ghidra is unreliable for 65816 semantics on its own.
+4. I will use smw-rev as a behavioral oracle where appropriate (NOT literal — may rename, reorganize, inline)
 5. I will explicitly state which oracle I am using and why
 6. I will use structured TCP/debug tooling
 7. If tooling is missing, I will build it first
