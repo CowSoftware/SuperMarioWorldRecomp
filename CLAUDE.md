@@ -291,6 +291,24 @@ No subsystem is assumed complete.
 If generated code is wrong, fix generation.
 If observability is insufficient, build the tools.
 
+**Generated files in this repo — do NOT hand-edit any of these:**
+
+- `src/gen/smw_*_gen.c` — output of recomp.py, owned by regen.
+- `recomp/funcs.h` — cross-bank C declarations, owned by
+  `tools/sync_funcs_h.py`. Treat identically to the gen/ files:
+  no manual inserts, no manual sig tweaks, no comment edits.
+- `src/gen/bank_range.h` — emitted by recomp.py in --range mode.
+
+When one of these files is missing a declaration, has a wrong sig,
+or needs a new entry: **fix the generator**. sync_funcs_h.py that
+only rewrites existing declarations and silently skips new ones is
+itself a bug — extend the tool to insert/delete as needed.
+
+Editing a generated file might make the next build pass, but the
+next regen will silently overwrite or — worse — fail to overwrite
+(if the edit fills a gap the tool won't detect), leaving stale
+state that disagrees with the ROM-derived truth.
+
 ---
 
 ## 8. BUILD TOOLING WHEN MISSING
