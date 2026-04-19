@@ -49,86 +49,73 @@ next. Within a section, commit after each landing so rollback is cheap.
   filtering out non-register pointer/struct params so stale sigs get
   dropped). Pinned by 3 tests in `test_sync_funcs_h.py`.
 
-## Active: real SPC via recompiled code (no bifurcation)
+## Landed: real SPC via recompiled code (2026-04-19)
 
-North star: SMW audio runs through the real SPC700 emulator executed
-*from the recompiled C path*, not through the HLE `g_spc_player`
-byebye. The HLE SPC player is a parallel implementation we keep only
-because the recompiled path doesn't currently survive the boot
-handshake. Getting real SPC working retires `g_spc_player`
-permanently — one less hand-written audio simulator to maintain, one
-less place where game #2's audio behavior can diverge from its ROM.
+Route A landed. `g_use_my_apu_code = false` is the default. Real
+SPC audio runs through the recompiled `HandleSPCUploads_Inner` IPL
+handshake + byte-upload loop. No bifurcation; `g_spc_player` is
+off the critical path (still in the tree, queued for retirement).
 
-Two framework gaps that blocked real SPC are now fixed:
+Three framework fixes required to reach this state, each with a
+pinning test:
 
-- **M-flag width through SEP #$20** (snesrecomp@7dc2cdc). SEP #$20 now
-  narrows `self.A` to `(uint8)` so the $BBAA handshake's 8-bit CMP
-  against `$2140` reads the correct byte instead of a 16-bit leftover.
-- **Decode-order fall-through repair** (snesrecomp@48a11cd). Non-
-  terminator insns whose ROM fall-through lands on decoded-earlier
-  code now get an explicit `goto label_<pc+length>` so `v13++;` at
-  `$809f` wraps back to `label_80a0` instead of falling off the
-  function.
+- `SEP #$20` narrows A to `(uint8)` so 8-bit ops post-SEP see
+  the low byte only (snesrecomp@7dc2cdc).
+- Decode-order-≠-ROM-order insn emission now injects an explicit
+  `goto label_<pc+length>` when natural C fall-through would land
+  on wrong code (snesrecomp@48a11cd).
+- Loop-header A/B/X/Y phi assignments emitted at every back-edge
+  goto, including fall-through back-edges (snesrecomp@990cb33).
+  B was not previously tracked at labels — REP #$20 merges A+B,
+  so a loop body that refreshes B via XBA-after-LDA needs the
+  header's B-var updated on the back-edge.
 
-One blocker remains: at runtime, `snes_readBBus` returns `0` for APU
-port reads unless `g_is_uploading_apu` is true. That flag is only
-flipped by `FixBugHook($80F7)`, which fires under the CPU emulator's
-opcode dispatcher — never from recompiled function calls. So the
-recompiled `HandleSPCUploads_Inner`'s $BBAA poll reads `0` forever
-and the watchdog fires.
+Runtime cleanup in the same commit: `g_is_uploading_apu` deleted
+(redundant with `g_use_my_apu_code`). `snes_readBBus` / `RtlApuWrite`
+under real SPC go straight to the APU, lock-serialised with the
+audio thread. `RtlRenderAudio` no longer gates on an upload flag.
 
-### Route A (primary): collapse `g_is_uploading_apu` into `g_use_my_apu_code`
+Harness 2052/2052 (+1 over pre-real-SPC: HandleSPCUploads_Inner
+is now a real function being checked). All 79 framework tests pass.
 
-The `g_is_uploading_apu` flag exists to distinguish "HLE mode, APU
-not running" from "real mode, APU is running." We already encode
-that distinction in `g_use_my_apu_code`. The flag is redundant.
+## Active: chase the first real divergence under real SPC
 
-Change:
-- `snes_readBBus` APU-port branch: `if (g_use_my_apu_code) return 0;
-  snes_catchupApu(snes); return snes->apu->outPorts[adr & 0x3];`
-- `RtlApuWrite`: under `!g_use_my_apu_code`, always catch up + write
-  to `inPorts` directly. Under HLE, keep the queue machinery.
-- Delete `g_is_uploading_apu`, `RtlSetUploadingApu`, and the four
-  `FixBugHook($811D/$80F7/$80FB/$817e)` entries in `smw_cpu_infra.c`
-  that only existed to toggle it.
+Real SPC is landed but the $03 trace still differs from the oracle
+at boot — recomp writes nothing, oracle writes `$00 → $FD` at
+frame 0 and `$FD → $04` at frame 2. That baseline hasn't moved
+since session start, so SPC was one confounding source, not the
+only one. Now that the SPC handshake isn't masking anything, the
+`$03` divergence is the live signal for whatever framework gap
+fires next.
 
-Under real SPC, APU I/O then works unconditionally — no anomaly to
-mark. The recompiled `HandleSPCUploads_Inner` body runs natively,
-talks to the real APU, the handshake completes.
+Plan: run `/recomp-debug` Phase 3 classification on the $03
+divergence.
 
-Validation: unstub `HandleSPCUploads_Inner` (cfg + gen_stubs.c), set
-`g_use_my_apu_code = false`, regen bank 00, rebuild, run paused,
-confirm frame 0 completes without watchdog. Real audio during
-gameplay proves the full pipeline.
+1. Sync both runtimes to frame 0, scan the full WRAM delta via
+   `tools/divergence_diff.py scan --advance --start 0 --end 500`
+   — the target byte isn't necessarily $03; it's wherever the
+   first deterministic write differs.
+2. For each divergent address, ring-buffer-trace both sides to
+   find the first write that disagrees. The WRITING function on
+   the oracle side names the code region the recomp isn't
+   reaching (or is reaching with wrong inputs).
+3. Classify: framework bug → fix the recompiler. Runtime bug →
+   fix the runtime. ROM-faithful behaviour → update expectations.
+   No cfg additions that encode framework-derivable facts.
 
-### Route B (fallback, only if Route A leaves a real anomaly): cfg entry/exit hook directive
-
-If it turns out there's actually state coordination between the
-recompiled code and the host runtime that can't be dissolved at the
-I/O layer, then we add a genuinely game-agnostic framework feature:
-`func NAME ADDR end:X sig:Y enter:CallableA exit:CallableB`. The
-recompiler emits `CallableA();` as the first statement of the
-function body and `CallableB();` before every `return;`. Game-side
-provides the Enter/Exit bodies.
-
-This is a legitimate framework capability — any recompiled game may
-have HW-adjacent routines that need runtime bridging — and is a
-legal cfg use under rule 0c (encodes per-ROM-address calling
-convention that can't be derived from ROM bytes). But Route A
-dissolves the specific blocker without needing it, so we only build
-this if Route A exposes a case where the I/O layer can't absorb
-the coordination.
+Stop condition: one pinning test lands for whatever bug surfaces
+(rule 1b), recomp $03 trace matches oracle through frame 5, and
+we can demonstrate any further divergence is genuinely downstream.
 
 ### Scope guardrails
 
-- Route A touches `snesrecomp/runner/src/snes/snes.c` +
-  `snesrecomp/runner/src/common_rtl.c` + `src/smw_cpu_infra.c` only.
-  No gen edits, no new cfg directives.
-- `g_spc_player` is the parallel-implementation smell we're paying
-  off. Do not keep it "for fallback" — the point is to retire it.
-- If Route A passes frame-0 but audio sounds wrong mid-game, that's
-  a symptom to diagnose via the ring buffer, not a reason to keep
-  HLE around.
+- Do not retire `g_spc_player` yet — it's not on the critical path
+  anymore but keeping it compiled proves the HLE code still builds.
+  Queued for a separate targeted deletion commit after $03 lands.
+- Do not touch `kPatchedCarrys_SMW[]` in this pass. That's a
+  framework gap (carry-flag inference), queued separately.
+- The harness is 2052/2052 so static checks aren't the pain point
+  right now. Dynamic (runtime) behaviour is where bugs hide.
 
 ## Queued: SMWDisX harness v0.2 — mnemonic + operand parity
 
