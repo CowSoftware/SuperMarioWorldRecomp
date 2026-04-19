@@ -69,63 +69,27 @@ static uint32 get_24(uint32 a) {
 }
 
 uint32 PatchBugs_SMW1(void) {
-  if (FixBugHook(0xA33C) || FixBugHook(0xa358) || FixBugHook(0xA378)) {
-    if (g_cpu->a == 0x0)
-      g_cpu->a = 0x2000;
-    return 0;
-  } else if (FixBugHook(0x1C641)) {
-    // PowerUpAndItemGFXRt_DrawCoinSprite doesn't set B
+  // Surviving entries are HLE/runtime bridges, NOT bug fixes:
+  //   - DB-preservation around an HLE call boundary (0x1C641/0x1C644)
+  //   - HLE replacement for CheckWhichControllersArePluggedIn (0x9A74)
+  //   - APU-upload state tracking required by HLE'd SPC engine
+  //     (0x811D, 0x80F7, 0x80FB, 0x817e — gated on g_use_my_apu_code)
+  //
+  // Editorial fixes for original-SMW bugs (uninited regs, OOB reads,
+  // etc.) were removed: a faithful recompilation should reproduce the
+  // ROM's behavior, not silently mask its bugs. If removal exposes
+  // visible regressions, the right fix is in the recompiler/runtime,
+  // not in resurrecting smw-rev's editorial patches.
+  if (FixBugHook(0x1C641)) {
+    // PowerUpAndItemGFXRt_DrawCoinSprite — preserve DB across HLE boundary
     preserved_db = g_cpu->db;
     g_cpu->db = 1;
   } else if (FixBugHook(0x1C644)) {
     g_cpu->db = preserved_db;
-  } else if (FixBugHook(0x4e686)) {
-    // CheckIfDestroyTileEventIsActive doesn't zero Y
-    g_cpu->y = 0;
   } else if (FixBugHook(0x9A74)) {
+    // HLE replacement for CheckWhichControllersArePluggedIn
     CheckWhichControllersArePluggedIn();
-    // Remove old CheckWhichControllersArePluggedIn
     return 0x9A8A;
-  } else if (FixBugHook(0x058AFB) || FixBugHook(0x58CE0)) {
-
-    int lvl_setting = misc_level_mode_setting;
-    int max_n = (lvl_setting == 7 || lvl_setting == 8 || lvl_setting == 10 || lvl_setting == 13) ? 28 : 16;
-    // BufferScrollingTiles_Layer1_VerticalLevel reads oob
-    if ((uint8)g_cpu->a >= max_n)
-      g_cpu->a = 0;
-  } else if (FixBugHook(0xfda5)) {
-    // SpawnPlayerWaterSplashAndManyBreathBubbles Y not inited
-    g_cpu->y = 0;
-  } else if (FixBugHook(0xCC32)) {
-    // UpdateHDMAWindowBuffer_00CC14 reads bad ptr
-    if (WORD(g_ram[6]) == 0) {
-      g_cpu->a = 0;
-      return 0xCC34;
-    }
-  } else if (FixBugHook(0x04FC00)) {  // OWSpr06_KoopaKid uninited Y
-    g_cpu->y = owspr_table0df5[(uint8)g_cpu->x];
-  } else if (FixBugHook(0x03B830)) {  //  CheckPlayerPositionRelativeToSprite_Y in bank 3 writes to R15 instead of R14
-    g_ram[0xe] = g_cpu->a;
-    return 0x3b832;
-  } else if (FixBugHook(0x2F2FC)) {  // Wiggler reads from spr_ylos_lo instead of hi
-    g_cpu->a = spr_ypos_hi[g_cpu->x & 0xff];
-    return 0x2F2Fe;
-  } else if (FixBugHook(0xCAC7)) {
-    // UpdateHDMAWindowBuffer_KeyholeEntry writes oob
-    if (g_cpu->x >= 0x1e0)
-      return 0xCAD6;
-  } else if (FixBugHook(0xCA9F)) {
-    // UpdateHDMAWindowBuffer_KeyholeEntry writes oob
-    if (g_cpu->x >= 0x1e0)
-      return 0xCAA5;
-  } else if (FixBugHook(0xCA86)) {
-    if (LOBYTE(g_cpu->a) == 255 || LOBYTE(g_cpu->a) == 0) g_cpu->a = 1;
-  } else if (FixBugHook(0x4862E)) {
-    // DrawOverworldPlayer doesn't init
-    WORD(g_ram[0]) = 0;
-    WORD(g_ram[4]) = 0;
-  } else if (FixBugHook(0x3A0A7)) {  // Spr0A8_Blargg OOB
-    g_ram[3] = (spr_table1602[g_cpu->x] != 0) * 5;
   } else if (FixBugHook(0x811D)) {
     if (g_use_my_apu_code)
       return 0x8125;
@@ -136,20 +100,6 @@ uint32 PatchBugs_SMW1(void) {
     RtlSetUploadingApu(true);
   } else if (FixBugHook(0x80FB)) {
     RtlSetUploadingApu(false);
-  } else if (FixBugHook(0xE3FB)) {
-    g_ram[12] = g_ram[13] = 0; // R13 not initialized
-  } else if (FixBugHook(0x1FD50)) {
-    // Spr029_KoopaKid_Status08_IggyLarry_01FD50 may not init its outputs
-    WORD(g_ram[0x14b8]) = spr_xpos_lo[g_cpu->x];
-    WORD(g_ram[0x14ba]) = spr_ypos_lo[g_cpu->x]; 
-  } else if (FixBugHook(0x1d7f4)) {
-    WORD(g_ram[8]) = GetSprYPos(g_cpu->x);
-    WORD(g_ram[10]) = GetSprXPos(g_cpu->x);
-  } else if (FixBugHook(0x1ec36)) {
-    g_cpu->a = 1;
-  } else if (FixBugHook(0x19F1C)) {
-    if (g_cpu->y >= 84)
-      g_cpu->y = 0;
   } else if (FixBugHook(0x817e)) {
     g_cpu->y = g_ram[kSmwRam_APUI02];
     return 0x8181;
