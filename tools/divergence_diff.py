@@ -211,6 +211,31 @@ def cmd_watch(args, recomp: Runtime, oracle: Runtime) -> int:
     return 0
 
 
+def cmd_trace(args, recomp: Runtime, oracle: Runtime) -> int:
+    """Enable per-runtime addr-watch on `--addr`, step both N frames,
+    dump both logs side-by-side. Catches every WRAM change at that
+    address that survives the runtime's 5ms watchpoint poll interval —
+    fast intra-frame writes that get clobbered may be missed."""
+    addr_hex = f"{args.addr:x}"
+    print(f"# trace_addr ${args.addr:04X} on both runtimes, stepping {args.frames} frames", flush=True)
+    print(f"recomp init: {recomp.cmd(f'trace_addr {addr_hex}')}", flush=True)
+    print(f"oracle init: {oracle.cmd(f'trace_addr {addr_hex}')}", flush=True)
+    for _ in range(args.frames):
+        recomp.step(1)
+        oracle.step(1)
+    rt = recomp.cmd("get_trace")
+    ot = oracle.cmd("get_trace")
+    print(f"\n=== recomp writes to ${args.addr:04X} ({rt.get('entries', 0)} entries) ===", flush=True)
+    for e in rt.get("log", []):
+        stack = " > ".join(e.get("stack", [])) or "(no stack)"
+        print(f"  f={e['f']}  {e['old']} -> {e['new']}  func={e['func']}  stack=[{stack}]", flush=True)
+    print(f"\n=== oracle writes to ${args.addr:04X} ({ot.get('entries', 0)} entries) ===", flush=True)
+    for e in ot.get("log", []):
+        stack = " > ".join(e.get("stack", [])) or "(no stack)"
+        print(f"  f={e['f']}  {e['old']} -> {e['new']}  func={e['func']}  stack=[{stack}]", flush=True)
+    return 0
+
+
 def cmd_frame(args, recomp: Runtime, oracle: Runtime) -> int:
     """Diff a single frame in detail."""
     if not wait_for_frame([recomp, oracle], args.frame):
@@ -250,6 +275,10 @@ def main(argv: list[str]) -> int:
     wp.add_argument("--length", type=int, default=1)
     wp.add_argument("--frames", type=int, default=20)
 
+    tp = sub.add_parser("trace", help="enable trace_addr on both runtimes, step N frames, dump both logs")
+    tp.add_argument("--addr", type=lambda s: int(s, 0), default=0x03)
+    tp.add_argument("--frames", type=int, default=5)
+
     # Default sub-command if none given.
     args = p.parse_args(argv if argv else ["scan"])
     if args.cmd is None:
@@ -262,6 +291,8 @@ def main(argv: list[str]) -> int:
             return cmd_frame(args, recomp, oracle)
         if args.cmd == "watch":
             return cmd_watch(args, recomp, oracle)
+        if args.cmd == "trace":
+            return cmd_trace(args, recomp, oracle)
         return cmd_scan(args, recomp, oracle)
     finally:
         recomp.close()

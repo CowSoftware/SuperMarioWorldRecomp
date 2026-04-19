@@ -66,6 +66,4 @@ typedef struct GenTileArgs {
 } GenTileArgs;
 
 const uint8 *GetSpriteListPtr();
-uint8 GetCurrentSlope(int i);
-
 #endif  // SMW_SMW_RTL_H_

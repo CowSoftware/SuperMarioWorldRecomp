@@ -610,9 +610,6 @@ static const uint8 kStatusBarTilemap_SomeRow[8] = { 0x3A,0xB8,0x3B,0xB8,0x3B,0xB
 
 
 
-const uint8 *GetLayer3ImagePtr(int i) {
-  return kLayer3ImagePtrs(i).ptr;
-}
 
 
 
@@ -622,9 +619,6 @@ const uint8 *GetLayer3ImagePtr(int i) {
 
 
 
-const uint16 *GetPlayerPalette() {
-  return kPlayerPalettes + ((pointer_player_palette - 0xb2c8) >> 1);
-}
 
 
 
@@ -764,13 +758,6 @@ static const uint16 kChangeNetDoorTiles_Closed[72] = { 0x9cba, 0x1cab, 0x1cab, 0
 static const uint8 kSlopeSteepness_e55e[106] = { 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 14, 15, 16, 17, 3, 3, 4, 4, 9, 9, 10, 10, 12, 12, 13, 13, 18, 19, 20, 21, 22, 23, 28, 29, 30, 31, 24, 25, 26, 27, 8, 9, 10, 11, 12, 13,  };
 static const uint8 kSlopeSteepness_e5c8[106] = { 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 14, 15, 16, 17, 3, 3, 4, 4, 9, 9, 10, 10, 12, 12, 13, 13, 12, 13, 13, 12, 22, 23, 28, 29, 30, 31, 24, 25, 26, 27, 8, 9, 10, 11, 12, 13,  };
 
-const uint8 *GetSlopeSteepness() {
-  switch (ptr_slope_steepness.addr) {
-  case 0xe55e: return kSlopeSteepness_e55e;
-  case 0xe5c8: return kSlopeSteepness_e5c8;
-  }
-  return Unreachable(), NULL;
-}
 
 
 
@@ -814,19 +801,7 @@ static const uint8 kLevelDataLayoutTables_EightBitHi_Vertical[28] = { 0xc8, 0xca
 0xe4, 0xe6, 0xe8, 0xea, 0xec, 0xee, 0xf0, 0xf2, 0xf4, 0xf6, 0xf8, 0xfa, 0xfc, 0xfe,};
 
 
-uint16 GetLevelLayoutPtr_Vertical(int i) {
-  assert(i < 28);
-  return PAIR16(kLevelDataLayoutTables_EightBitHi_Vertical[i], kLevelDataLayoutTables_EightBitLo_Vertical[i]);
-}
 
-uint16 GetLevelLayoutPtr_Horizontal(int i) {
-  if (i >= 32)
-    printf("WARNING: GetLevelLayoutPtr_Horizontal: Reading invalid slot %d\n", i);
-  if (HAS_LM_FEATURE(kLmFeature_LoadLevel))
-    return PAIR16(L1_Screen_8bit_Hi[i], L1_Screen_8bit_Lo[i]);
-  else
-    return PAIR16(kLevelDataLayoutTables_EightBitHi_Horizontal[i], kLevelDataLayoutTables_EightBitLo_Horizontal[i]);
-}
 
 
 
