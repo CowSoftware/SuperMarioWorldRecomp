@@ -3,20 +3,24 @@
 // Two categories:
 //
 //   (A) HandleSPCUploads_Inner — intentional HLE bypass while
-//       g_use_my_apu_code=true. The recompiler can generate a
-//       body for this function, but turning the real-SPC path on
-//       is currently blocked by a separate emit-order gap: the
-//       NextByte loop's natural fall-through from $809f (INC A)
-//       into StartTransfer at $80a0 is lost because the emitter
-//       places $80a0 earlier in C than $809f, so `v13++;` falls
-//       off the end of the function instead of wrapping. The
-//       M-flag width bug (SEP #$20 not narrowing self.A) was
-//       fixed in snesrecomp@7dc2cdc and is a prerequisite for
-//       re-attempting the transition. To re-enable: revert to
+//       g_use_my_apu_code=true. Two framework fixes needed for the
+//       gen body to work have now landed (SEP #$20 width narrowing in
+//       snesrecomp@7dc2cdc; decode-order fall-through repair in
+//       snesrecomp@48a11cd). The gen body is now well-formed C; the
+//       remaining blocker is at the RUNTIME layer: the HandleSPCUploads
+//       entry needs to set g_is_uploading_apu=true so snes_readBBus
+//       returns live APU outPorts during the $BBAA handshake poll.
+//       Currently that flag is only toggled by FixBugHook($80F7),
+//       which fires under the CPU emulator — not from recompiled C.
+//       Re-enabling real SPC via recomp therefore requires a new
+//       runtime-hook mechanism (recompiler emits an entry/exit hook
+//       at specific cfg-tagged addresses, smw_cpu_infra.c provides
+//       the Enter/Exit bodies that wrap RtlSetUploadingApu). Until
+//       that lands, this stub keeps the HLE SPC path live. To
+//       re-enable: add the hook mechanism + directive, revert to
 //       'func HandleSPCUploads_Inner 8079 end:80e8 sig:void(*p)'
-//       in bank00.cfg, shrink exclude_range 8000 80E8 -> 8000
-//       8079, remove this stub, fix the emit-order gap, regen
-//       bank 00.
+//       in bank00.cfg, shrink exclude_range 8000 80E8 -> 8000 8079,
+//       remove this stub, regen bank 00.
 //
 //   (B) SmwRunDecompressFromWRAM / _Entry2 — two WRAM-executed
 //       functions. Cartridge ROM contains no instructions at bank
