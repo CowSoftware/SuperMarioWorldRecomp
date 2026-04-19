@@ -49,7 +49,88 @@ next. Within a section, commit after each landing so rollback is cheap.
   filtering out non-register pointer/struct params so stale sigs get
   dropped). Pinned by 3 tests in `test_sync_funcs_h.py`.
 
-## Active: SMWDisX harness v0.2 — mnemonic + operand parity
+## Active: real SPC via recompiled code (no bifurcation)
+
+North star: SMW audio runs through the real SPC700 emulator executed
+*from the recompiled C path*, not through the HLE `g_spc_player`
+byebye. The HLE SPC player is a parallel implementation we keep only
+because the recompiled path doesn't currently survive the boot
+handshake. Getting real SPC working retires `g_spc_player`
+permanently — one less hand-written audio simulator to maintain, one
+less place where game #2's audio behavior can diverge from its ROM.
+
+Two framework gaps that blocked real SPC are now fixed:
+
+- **M-flag width through SEP #$20** (snesrecomp@7dc2cdc). SEP #$20 now
+  narrows `self.A` to `(uint8)` so the $BBAA handshake's 8-bit CMP
+  against `$2140` reads the correct byte instead of a 16-bit leftover.
+- **Decode-order fall-through repair** (snesrecomp@48a11cd). Non-
+  terminator insns whose ROM fall-through lands on decoded-earlier
+  code now get an explicit `goto label_<pc+length>` so `v13++;` at
+  `$809f` wraps back to `label_80a0` instead of falling off the
+  function.
+
+One blocker remains: at runtime, `snes_readBBus` returns `0` for APU
+port reads unless `g_is_uploading_apu` is true. That flag is only
+flipped by `FixBugHook($80F7)`, which fires under the CPU emulator's
+opcode dispatcher — never from recompiled function calls. So the
+recompiled `HandleSPCUploads_Inner`'s $BBAA poll reads `0` forever
+and the watchdog fires.
+
+### Route A (primary): collapse `g_is_uploading_apu` into `g_use_my_apu_code`
+
+The `g_is_uploading_apu` flag exists to distinguish "HLE mode, APU
+not running" from "real mode, APU is running." We already encode
+that distinction in `g_use_my_apu_code`. The flag is redundant.
+
+Change:
+- `snes_readBBus` APU-port branch: `if (g_use_my_apu_code) return 0;
+  snes_catchupApu(snes); return snes->apu->outPorts[adr & 0x3];`
+- `RtlApuWrite`: under `!g_use_my_apu_code`, always catch up + write
+  to `inPorts` directly. Under HLE, keep the queue machinery.
+- Delete `g_is_uploading_apu`, `RtlSetUploadingApu`, and the four
+  `FixBugHook($811D/$80F7/$80FB/$817e)` entries in `smw_cpu_infra.c`
+  that only existed to toggle it.
+
+Under real SPC, APU I/O then works unconditionally — no anomaly to
+mark. The recompiled `HandleSPCUploads_Inner` body runs natively,
+talks to the real APU, the handshake completes.
+
+Validation: unstub `HandleSPCUploads_Inner` (cfg + gen_stubs.c), set
+`g_use_my_apu_code = false`, regen bank 00, rebuild, run paused,
+confirm frame 0 completes without watchdog. Real audio during
+gameplay proves the full pipeline.
+
+### Route B (fallback, only if Route A leaves a real anomaly): cfg entry/exit hook directive
+
+If it turns out there's actually state coordination between the
+recompiled code and the host runtime that can't be dissolved at the
+I/O layer, then we add a genuinely game-agnostic framework feature:
+`func NAME ADDR end:X sig:Y enter:CallableA exit:CallableB`. The
+recompiler emits `CallableA();` as the first statement of the
+function body and `CallableB();` before every `return;`. Game-side
+provides the Enter/Exit bodies.
+
+This is a legitimate framework capability — any recompiled game may
+have HW-adjacent routines that need runtime bridging — and is a
+legal cfg use under rule 0c (encodes per-ROM-address calling
+convention that can't be derived from ROM bytes). But Route A
+dissolves the specific blocker without needing it, so we only build
+this if Route A exposes a case where the I/O layer can't absorb
+the coordination.
+
+### Scope guardrails
+
+- Route A touches `snesrecomp/runner/src/snes/snes.c` +
+  `snesrecomp/runner/src/common_rtl.c` + `src/smw_cpu_infra.c` only.
+  No gen edits, no new cfg directives.
+- `g_spc_player` is the parallel-implementation smell we're paying
+  off. Do not keep it "for fallback" — the point is to retire it.
+- If Route A passes frame-0 but audio sounds wrong mid-game, that's
+  a symptom to diagnose via the ring buffer, not a reason to keep
+  HLE around.
+
+## Queued: SMWDisX harness v0.2 — mnemonic + operand parity
 
 v0.1 catches "decoder walked into data." v0.2 catches "decoder read a
 different instruction than SMWDisX did at the same address." Needed
