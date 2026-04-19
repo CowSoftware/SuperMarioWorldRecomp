@@ -8,6 +8,7 @@
 #include "common_cpu_infra.h"
 #include "snes/snes.h"
 #include "funcs.h"
+#include "debug_server.h"
 
 const uint8 *ptr_layer1_data;
 const uint8 *ptr_layer2_data;
@@ -118,8 +119,10 @@ void LoadStripeImage_UploadToVRAM(const uint8 *pp) {  // 00871e
         uint16 src_data = WORD(*pp);
         int ctr = (num + 1) >> 1;
         if (vmain) {
-          for (int i = 0; i < ctr; i++)
+          for (int i = 0; i < ctr; i++) {
             dst[i * 32] = src_data;
+            debug_server_on_vram_write((vram_addr + i * 32) & 0x7fff, src_data);
+          }
         } else {
           // uhm...?
           uint8 *dst_b = (uint8 *)dst;
@@ -127,6 +130,10 @@ void LoadStripeImage_UploadToVRAM(const uint8 *pp) {  // 00871e
             dst_b[i + ((i & 1) << 1)] = src_data;
           for (int i = 0; i < num; i += 2)
             dst_b[i + 1] = src_data >> 8;
+          // Emit one hook per word touched (may span more than the direct
+          // indexing suggests — be conservative and cover both halves).
+          for (int i = 0; i < (num + 1) >> 1; i++)
+            debug_server_on_vram_write((vram_addr + i) & 0x7fff, dst[i]);
         }
       }
       pp += 2;
@@ -135,11 +142,15 @@ void LoadStripeImage_UploadToVRAM(const uint8 *pp) {  // 00871e
         uint16 *dst = g_ppu->vram + vram_addr;
         uint16 *src = (uint16 *)pp;
         if (vmain) {
-          for (int i = 0; i < (num >> 1); i++)
+          for (int i = 0; i < (num >> 1); i++) {
             dst[i * 32] = src[i];
+            debug_server_on_vram_write((vram_addr + i * 32) & 0x7fff, src[i]);
+          }
         } else {
-          for (int i = 0; i < (num >> 1); i++)
+          for (int i = 0; i < (num >> 1); i++) {
             dst[i] = src[i];
+            debug_server_on_vram_write((vram_addr + i) & 0x7fff, src[i]);
+          }
         }
       }
       pp += num;
