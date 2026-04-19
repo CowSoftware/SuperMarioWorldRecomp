@@ -72,8 +72,12 @@ uint32 PatchBugs_SMW1(void) {
   // Surviving entries are HLE/runtime bridges, NOT bug fixes:
   //   - DB-preservation around an HLE call boundary (0x1C641/0x1C644)
   //   - HLE replacement for CheckWhichControllersArePluggedIn (0x9A74)
-  //   - APU-upload state tracking required by HLE'd SPC engine
-  //     (0x811D, 0x80F7, 0x80FB, 0x817e — gated on g_use_my_apu_code)
+  //   - HLE SPC skip for HandleSPCUploads entries (0x811D, 0x80F7)
+  //     — these skip the body ONLY under g_use_my_apu_code=true.
+  //     Under real SPC, snes_readBBus / RtlApuWrite route port I/O
+  //     straight to the real APU (no g_is_uploading_apu flag), so
+  //     the recompiled upload body runs unmodified.
+  //   - $817e: NMI APUIO2 readback bridge.
   //
   // Editorial fixes for original-SMW bugs (uninited regs, OOB reads,
   // etc.) were removed: a faithful recompilation should reproduce the
@@ -93,13 +97,9 @@ uint32 PatchBugs_SMW1(void) {
   } else if (FixBugHook(0x811D)) {
     if (g_use_my_apu_code)
       return 0x8125;
-    RtlSetUploadingApu(true);
   } else if (FixBugHook(0x80F7)) {
     if (g_use_my_apu_code)
       return 0x80fc;
-    RtlSetUploadingApu(true);
-  } else if (FixBugHook(0x80FB)) {
-    RtlSetUploadingApu(false);
   } else if (FixBugHook(0x817e)) {
     g_cpu->y = g_ram[kSmwRam_APUI02];
     return 0x8181;
