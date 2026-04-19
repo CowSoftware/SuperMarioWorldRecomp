@@ -67,9 +67,6 @@
     <ClCompile Include="smw_0c.c">
       <Filter>Smw</Filter>
     </ClCompile>
-    <ClCompile Include="smw_0d.c">
-      <Filter>Smw</Filter>
-    </ClCompile>
     <ClCompile Include="smw_cpu_infra.c">
       <Filter>Smw</Filter>
     </ClCompile>

@@ -178,7 +178,6 @@
     <ClCompile Include="gen\smw_0d_dispatch.c" />
     <ClCompile Include="..\snesrecomp\runner\src\debug_server.c" />
     <ClCompile Include="smw_0c.c" />
-    <ClCompile Include="smw_0d.c" />
     <ClCompile Include="smw_cpu_infra.c" />
     <ClCompile Include="dp_sync_bridge.c" />
     <ClCompile Include="smw_rtl.c" />
