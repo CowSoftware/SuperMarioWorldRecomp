@@ -1,5 +1,4 @@
 #include "smw_rtl.h"
-#include "recomp_state.h"
 #include "variables.h"
 #include "config.h"
 #include <time.h>
@@ -89,7 +88,7 @@ void SmwDrawPpuFrame(void) {
   SimpleHdma_Init(&hdma_chans[1], &dma->channel[6]);
   SimpleHdma_Init(&hdma_chans[2], &dma->channel[7]);
 
-  int trigger = g_recomp.vIrqEnabled ? g_recomp.vTimer + 1 : -1;
+  int trigger = g_snes->vIrqEnabled ? g_snes->vTimer + 1 : -1;
 
   for (int i = 0; i <= 224; i++) {
     ppu_runLine(g_ppu, i);
@@ -105,7 +104,7 @@ void SmwDrawPpuFrame(void) {
       // timer-IRQ path instead of exiting immediately.
       g_snes->inIrq = true;
       I_IRQ();
-      trigger = g_recomp.vIrqEnabled ? g_recomp.vTimer + 1 : -1;
+      trigger = g_snes->vIrqEnabled ? g_snes->vTimer + 1 : -1;
     }
   }
 }
