@@ -75,12 +75,6 @@ bool SmwSpecialSaveLoad(int cmd, int slot) {
   return false;
 }
 
-const uint8 *ptr_layer1_data;
-const uint8 *ptr_layer2_data;
-uint8 ptr_layer2_is_bg;
-
-
-
 void SmwSavePlaythroughSnapshot() {
   char buf[128];
   snprintf(buf, sizeof(buf), "playthrough/%d_%d_%d.sav", ow_level_number_lo, misc_exit_level_action, (int)time(NULL));
