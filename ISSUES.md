@@ -1,4 +1,53 @@
-# Open issues from autonomous rip session 2026-04-20
+# Open issues + session summary from autonomous rip session 2026-04-19/20
+
+## Session summary
+
+Branch: `chore/tier3c-irq-vector` (both repos).
+
+**Framework fixes (snesrecomp/recompiler/recomp.py + tests):**
+- STA [dp] / STA [dp],Y in M=0 no longer drops the high byte. New
+  `IndirWriteWord` runtime inline. `_emit_sta16` also now handles
+  INDIR_Y / INDIR_DPX / DP_INDIR (were falling through to silent
+  comment). 6 pinning tests.
+- Fall-through-into-excluded-range is no longer emitted as a spurious
+  tail call. 2 pinning tests.
+- `_emit_function` now emits `RecompStackPop + return` on non-terminal
+  bodies with no valid fall-through target so pushed stack frames
+  stay balanced.
+
+**Tooling:**
+- `tools/sync_funcs_h.py`: orphan-decl deletion, duplicate dedup,
+  also scans `snesrecomp/runner/src/*.c` for framework hand bodies,
+  prints a scaffolding-smell metric.
+
+**Rips landed on chore/tier3c-irq-vector:**
+- Tier 1c: `g_did_finish_level_hook` dead decl.
+- Tier 1d (partial): removed 4 `dp_sync` cfg directives from bank0d.cfg;
+  bank 0d gen lost 41 stub-call sites. See residual below.
+- Tier 3a: `PatchBugs_SMW1` (all 3 hooks were dead given Tier 3c status).
+  Null-guarded `PatchBugs()` in the runner.
+- Tier 3c/Reset: hand-written `SmwVectorReset` replaced by direct call
+  to recompiled `I_RESET` at ROM $00:8000-$806A.
+- Tier 3g: rip debug harness, unused vtable slots, HLE SPC executor
+  body (~1000 LOC, 33 orphan statics), DspRegWriteHistory field.
+  smw_spc_player.c: 1539 -> 71 LOC.
+- Dead: `LoadStripeImage_UploadToVRAM` (stripe HLE, 0 callers),
+  `UploadOAMBuffer` (superseded-codegen, 0 callers), 8 sprite
+  coordinate accessors, `ParseBoolBit`.
+
+**Metrics:**
+- Scaffolding smell (hand-bodies in src/*.c): 147 -> 96.
+- Release|x64 build: 0 errors, 105 warnings baseline maintained.
+- Boot: reaches frame 200+ unchanged; user-confirmed visually
+  "equally broken" at session start (ground-rendering bug is
+  unchanged because it's a separate codegen issue tracked in
+  memory/project_ground_not_rendering_*).
+- 14 commits on `chore/tier3c-irq-vector` in the parent repo,
+  3 on the same branch in the snesrecomp subrepo.
+
+## Open issues after session
+
+
 
 ## Tier 1d dp_sync residual — dispatch file still calls no-op stubs
 
