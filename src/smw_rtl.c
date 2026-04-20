@@ -1,6 +1,7 @@
 #include "smw_rtl.h"
 #include "recomp_state.h"
 #include "variables.h"
+#include "config.h"
 #include <time.h>
 #ifdef SMW_ORACLE
 #include "../../../tools/oracle/oracle.h"
@@ -9,6 +10,70 @@
 #include "snes/snes.h"
 #include "funcs.h"
 #include "debug_server.h"
+
+bool g_smw_playback_mode;
+static int g_smw_playback_ctr = (1) * 2 - 1; // 36
+
+static const char *const kSmwBugSaves[] = {
+  "playthrough/1_1",
+};
+
+static void SmwLoadNextPlaybackSnapshot(void) {
+  char name[128];
+  for (int i = 0; i < 100; i++) {
+    g_smw_playback_ctr++;
+    sprintf(name, "saves/playthrough/%d_%d.sav", g_smw_playback_ctr >> 1, (g_smw_playback_ctr & 1) + 1);
+    if (RtlLoadSnapshot(name, true)) {
+      printf("Playthrough %s\n", name);
+      return;
+    }
+  }
+}
+
+void SmwOnFrameInputs(uint32 inputs) {
+  // APUI02 reflection — the ancilla code tests this at WRAM $18c5.
+  uint8 apui02 = RtlApuReadReg(2);
+  if (apui02 != g_ram[kSmwRam_APUI02]) {
+    g_ram[kSmwRam_APUI02] = apui02;
+    RtlRecordPatchByte(&g_ram[kSmwRam_APUI02], 1);
+  }
+  // Whether controllers are plugged in (top two bits of input word).
+  uint32 new_my_flags = inputs >> 30;
+  if (new_my_flags != g_ram[kSmwRam_my_flags]) {
+    assert(new_my_flags <= 255);
+    g_ram[kSmwRam_my_flags] = (uint8)new_my_flags;
+    RtlRecordPatchByte(&g_ram[kSmwRam_my_flags], 1);
+  }
+}
+
+void SmwOnFinishLevel(void) {
+  if (!RtlIsReplayMode() && g_config.save_playthrough) {
+    SmwSavePlaythroughSnapshot();
+    RtlClearKeyLog();
+  }
+  if (g_smw_playback_mode)
+    SmwLoadNextPlaybackSnapshot();
+}
+
+bool SmwSpecialSaveLoad(int cmd, int slot) {
+  if (cmd == kSaveLoad_Replay && slot == 256) {
+    g_smw_playback_mode = true;
+    SmwLoadNextPlaybackSnapshot();
+    return true;
+  }
+  if (slot >= 256) {
+    int i = slot - 256;
+    if (cmd == kSaveLoad_Save || i >= (int)(sizeof(kSmwBugSaves) / sizeof(kSmwBugSaves[0])))
+      return true;
+    char name[128];
+    sprintf(name, "saves/%s.sav", kSmwBugSaves[i]);
+    printf("*** %s slot %d: %s\n",
+      cmd == kSaveLoad_Save ? "Saving" : cmd == kSaveLoad_Load ? "Loading" : "Replaying", slot, name);
+    RtlLoadSnapshot(name, cmd == kSaveLoad_Replay);
+    return true;
+  }
+  return false;
+}
 
 const uint8 *ptr_layer1_data;
 const uint8 *ptr_layer2_data;
@@ -95,7 +160,7 @@ void SmwRunOneFrameOfGame(void) {
   if (*(uint16 *)reset_sprites_y_function_in_ram == 0)
     SmwVectorReset();
   SmwRunOneFrameOfGame_Internal();
-  SmwVectorNMI();
+  auto_00_816A();
 #ifdef SMW_ORACLE
   oracle_dump_frame((uint32_t)snes_frame_counter, g_ram);
 #endif

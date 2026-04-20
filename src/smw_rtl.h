@@ -6,20 +6,25 @@
 
 extern int g_dbg_ctr_mine;
 
+enum {
+  kSmwRam_APUI02 = 0x18c5,
+  kSmwRam_my_flags = 0x19C7C,
+};
+
+extern bool g_smw_playback_mode;
+
+// RtlGameInfo hooks (see snesrecomp/runner/src/common_cpu_infra.h).
+void SmwOnFrameInputs(uint32 inputs);
+void SmwOnFinishLevel(void);
+bool SmwSpecialSaveLoad(int cmd, int slot);
+
 PointU16 *get_PointU16(PointU16 *pt, uint8 off);
 static inline OamEnt *get_OamEnt(OamEnt *base, uint16 off) { return (OamEnt *)((uint8 *)base + off); }
 
 void SmwVectorReset();
 void SmwRunOneFrameOfGame_Internal();
-void SmwVectorNMI();
 void SmwVectorIRQ();
 void SmwSavePlaythroughSnapshot();
-
-void SmwCopyToVram(uint16 vram_addr, const uint8 *src, int n);
-void SmwClearVram(uint16 vram_addr, uint16 value, int n);
-void SmwCopyToVramPitch32(uint16 vram_addr, const uint8 *src, int n);
-void SmwCopyToVramLow(uint16 vram_addr, const uint8 *src, int n);
-void SmwCopyFromVram(uint16 vram_addr, uint8 *dst, int n);
 
 void SmwDrawPpuFrame(void);
 void SmwRunOneFrameOfGame(void);
