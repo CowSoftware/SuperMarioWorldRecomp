@@ -222,11 +222,6 @@ void NORETURN Die(const char *error) {
   exit(1);
 }
 
-void Warning(const char *error) {
-  SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, kWindowTitle, error, NULL);
-  fprintf(stderr, "Warning: %s\n", error);
-}
-
 static GamepadInfo *GetGamepadInfo(SDL_JoystickID id) {
   return (g_gamepad[0].joystick_id == id) ? &g_gamepad[0] :
     (g_gamepad[1].joystick_id == id) ? &g_gamepad[1] : NULL;
