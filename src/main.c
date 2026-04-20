@@ -58,9 +58,8 @@ static void HandleInput(int keyCode, int keyMod, bool pressed);
 static void HandleCommand(uint32 j, bool pressed);
 void OpenGLRenderer_Create(struct RendererFuncs *funcs);
 
-bool g_debug_flag;
-bool g_want_dump_memmap_flags;
 bool g_new_ppu = true;
+
 struct SpcPlayer *g_spc_player;
 
 static uint8_t g_my_pixels[256 * 4 * 240];
@@ -503,10 +502,6 @@ int main(int argc, char** argv) {
   } else {
     SwitchDirectory();
   }
-  if (argc >= 1 && strcmp(argv[0], "--debug") == 0) {
-    g_debug_flag = true;
-    argc -= 1, argv += 1;
-  }
   int start_paused = 0;
   if (argc >= 1 && strcmp(argv[0], "--paused") == 0) {
     start_paused = 1;
@@ -934,7 +929,7 @@ static void HandleCommand(uint32 j, bool pressed) {
     case kKeys_WindowSmaller: ChangeWindowScale(-1); break;
     case kKeys_DisplayPerf: g_display_perf ^= 1; break;
     case kKeys_ToggleRenderer:
-      g_ppu_render_flags ^= kPpuRenderFlags_NewRenderer; 
+      g_ppu_render_flags ^= kPpuRenderFlags_NewRenderer;
       printf("New renderer = %x\n", g_ppu_render_flags & kPpuRenderFlags_NewRenderer);
       g_new_ppu = (g_ppu_render_flags & kPpuRenderFlags_NewRenderer) != 0;
       break;
