@@ -63,7 +63,6 @@ SpcPlayer *SmwSpcPlayer_Create(void) {
   SmwSpcPlayer *p = (SmwSpcPlayer *)malloc(sizeof(SmwSpcPlayer));
   memset(p, 0, sizeof(SmwSpcPlayer));
   p->base.dsp = dsp_init(p->ram);
-  p->base.ram = p->ram;
   p->base.initialize = &SmwSpcPlayer_Initialize;
   p->base.upload = &SmwSpcPlayer_Upload;
   return &p->base;

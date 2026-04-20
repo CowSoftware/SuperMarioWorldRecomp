@@ -10,7 +10,6 @@ typedef void SpcPlayer_Upload_Func(SpcPlayer *p, const uint8_t *data);
 
 typedef struct SpcPlayer {
   Dsp *dsp;
-  uint8 *ram;
   uint8 input_ports[4];
   uint8 port_to_snes[4];
 
