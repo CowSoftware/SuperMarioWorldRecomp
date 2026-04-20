@@ -72,11 +72,6 @@ uint32 PatchBugs_SMW1(void) {
   // Surviving entries are HLE/runtime bridges, NOT bug fixes:
   //   - DB-preservation around an HLE call boundary (0x1C641/0x1C644)
   //   - HLE replacement for CheckWhichControllersArePluggedIn (0x9A74)
-  //   - HLE SPC skip for HandleSPCUploads entries (0x811D, 0x80F7)
-  //     — these skip the body ONLY under g_use_my_apu_code=true.
-  //     Under real SPC, snes_readBBus / RtlApuWrite route port I/O
-  //     straight to the real APU (no g_is_uploading_apu flag), so
-  //     the recompiled upload body runs unmodified.
   //   - $817e: NMI APUIO2 readback bridge.
   //
   // Editorial fixes for original-SMW bugs (uninited regs, OOB reads,
@@ -94,12 +89,6 @@ uint32 PatchBugs_SMW1(void) {
     // HLE replacement for CheckWhichControllersArePluggedIn
     CheckWhichControllersArePluggedIn();
     return 0x9A8A;
-  } else if (FixBugHook(0x811D)) {
-    if (g_use_my_apu_code)
-      return 0x8125;
-  } else if (FixBugHook(0x80F7)) {
-    if (g_use_my_apu_code)
-      return 0x80fc;
   } else if (FixBugHook(0x817e)) {
     g_cpu->y = g_ram[kSmwRam_APUI02];
     return 0x8181;
@@ -173,85 +162,17 @@ void SmwCpuInitialize(void) {
   }
 }
 
-static void SmwFixSnapshotForCompare(Snapshot *b, Snapshot *a) {
-  memcpy(&b->ram[0x0], &a->ram[0x0], 16); // temps
-  memcpy(&b->ram[0x10b], &a->ram[0x10b], 0x100 - 0xb);  // stack
-
-  memcpy(&b->ram[0x17bb], &a->ram[0x17bb], 1); // unusedram_7e17bb
-
-  memcpy(&b->ram[0x65], &a->ram[0x65], 12);  // temp66, etc
-  memcpy(&b->ram[0x8a], &a->ram[0x8a], 6);  // temp8a, etc
-
-  memcpy(&b->ram[0x14B0], &a->ram[0x14B0], 0x11);  // temp14b0 etc
-
-  memcpy(&b->ram[0x1436], &a->ram[0x1436], 4);  // temp14b0 etc
-
-  memcpy(&b->ram[0x1C00B], &a->ram[0x1C00B], 1);  // lm_varB
-
-  if (g_custom_music) {
-    memcpy(&b->ram[0x1DF9], &a->ram[0x1DF9], 8); // sound io
-  }
-
-}
-
-static uint32 RunCpuUntilPC(uint32 pc1, uint32 pc2) {
-  uint32 addr_last = g_snes->cpu->k << 16 | g_snes->cpu->pc;
-
-  for(;;) {
-    snes_runCpu(g_snes);
-//    snes_runCycle(g_snes);
-    uint32 addr = (g_snes->cpu->k << 16 | g_snes->cpu->pc) & 0x7fffff;
-    if (addr != addr_last && (addr == pc1 || addr == pc2)) {
-      return addr;
-    }
-    addr_last = addr;
-  }
-}
-
-void SmwRunOneFrameOfGame_Emulated(void) {
-  Snes *snes = g_snes;
-  snes->vPos = snes->hPos = 0;
-  snes->cpu->nmiWanted = snes->cpu->irqWanted = false;
-  snes->inVblank = snes->inNmi = false;
-
-  // Execute until: mov.b   A, waiting_for_vblank
-  RunCpuUntilPC(0x8077, 0x8077);
-
-  g_snes->debug_cycles = 0; // turn off debuig prints if enabled
-
-  // Trigger nmi
-  snes->cpu->nmiWanted = true;
-  RunCpuUntilPC(0x82C3, 0x83B9);
-  snes_runCpu(snes);
-
-  // Right after NMI completes, draw the frame, possibly triggering IRQ.
-  assert(!snes->cpu->i);
-
-/*
-  snes->vPos = snes->hPos = 0;
-  snes->cpu->nmiWanted = snes->cpu->irqWanted = false;
-  snes->inVblank = snes->inNmi = false;
-
-  while (!snes->inNmi) {
-    snes_handle_pos_stuff(snes);
-
-    if (snes->cpu->irqWanted) {
-      RunCpuUntilPC(0x82C3, 0x83B9);
-      snes_runCpu(snes);
-    }
-  }
-  */
-}
-
-
 const RtlGameInfo kSmwGameInfo = {
-  "smw",
-  kGameID_SMW,
-  kPatchedCarrys_SMW, arraysize(kPatchedCarrys_SMW),
-  &PatchBugs_SMW1,
-  &SmwCpuInitialize,
-  &SmwRunOneFrameOfGame,
-  &SmwRunOneFrameOfGame_Emulated,
-  &SmwDrawPpuFrame,
-  &SmwFixSnapshotForCompare,
+  .title = "smw",
+  .game_id = kGameID_SMW,
+  .patch_carrys = kPatchedCarrys_SMW,
+  .patch_carrys_count = arraysize(kPatchedCarrys_SMW),
+  .patch_bugs = &PatchBugs_SMW1,
+  .initialize = &SmwCpuInitialize,
+  .run_frame = &SmwRunOneFrameOfGame,
+  .draw_ppu_frame = &SmwDrawPpuFrame,
+  .save_name_prefix = "save",
+  .on_frame_inputs = &SmwOnFrameInputs,
+  .on_finish_level = &SmwOnFinishLevel,
+  .special_save_load = &SmwSpecialSaveLoad,
 };

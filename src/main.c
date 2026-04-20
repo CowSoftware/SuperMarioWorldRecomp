@@ -64,10 +64,8 @@ void OpenGLRenderer_Create(struct RendererFuncs *funcs);
 bool g_debug_flag;
 bool g_want_dump_memmap_flags;
 bool g_new_ppu = true;
-bool g_other_image = true;
 struct SpcPlayer *g_spc_player;
 
-static uint8_t g_pixels[256 * 4 * 240];
 static uint8_t g_my_pixels[256 * 4 * 240];
 
 int g_got_mismatch_count;
@@ -307,10 +305,8 @@ static SDL_HitTestResult HitTestCallback(SDL_Window *win, const SDL_Point *pt, v
 
 void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
   g_rtl_game_info->draw_ppu_frame();
-  
-  uint8 *ppu_pixels = g_other_image ? g_my_pixels : g_pixels;
   for (size_t y = 0, y_end = g_snes_height; y < y_end; y++)
-    memcpy((uint8 *)pixel_buffer + y * pitch, ppu_pixels + y * 256 * 4, 256 * 4);
+    memcpy((uint8 *)pixel_buffer + y * pitch, g_my_pixels + y * 256 * 4, 256 * 4);
 }
 
 static void DrawPpuFrameWithPerf(void) {
@@ -622,6 +618,8 @@ int main(int argc, char** argv) {
       goto error_reading;
   }
 
+  extern const RtlGameInfo kSmwGameInfo;
+  RtlRegisterGame(&kSmwGameInfo);
   Snes *snes = SnesInit(kRom, kRom_SIZE);
   if (snes == NULL) {
 error_reading:;
@@ -677,7 +675,6 @@ error_reading:;
     g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
   }
 
-  PpuBeginDrawing(g_snes->ppu, g_pixels, 256 * 4, 0);
   PpuBeginDrawing(g_my_ppu, g_my_pixels, 256 * 4, 0);
 
   if (g_config.save_playthrough)
@@ -934,10 +931,6 @@ static void HandleCommand(uint32 j, bool pressed) {
     switch (j) {
     case kKeys_CheatLife: RtlCheat('w'); break;
     case kKeys_CheatJump: RtlCheat('q'); break;
-    case kKeys_ToggleWhichFrame:
-      g_other_image = !g_other_image;
-      printf("Image=%d\n", g_other_image);
-      break;
     case kKeys_ClearKeyLog: RtlClearKeyLog(); break;
     case kKeys_StopReplay: RtlStopReplay(); break;
     case kKeys_Fullscreen:
