@@ -27,15 +27,6 @@ void SmwSavePlaythroughSnapshot();
 void SmwDrawPpuFrame(void);
 void SmwRunOneFrameOfGame(void);
 
-void AddSprXPos(uint8 k, uint16 x);
-void AddSprYPos(uint8 k, uint16 y);
-void AddSprXYPos(uint8 k, uint16 x, uint16 y);
-uint16 GetSprXPos(uint8 k);
-uint16 GetSprYPos(uint8 k);
-void SetSprXPos(uint8 k, uint16 x);
-void SetSprYPos(uint8 k, uint16 y);
-void SetSprXYPos(uint8 k, uint16 x, uint16 y);
-
 #pragma pack (push, 1)
 typedef struct OwExits {
   uint16 field_0;
