@@ -49,9 +49,6 @@
     <ClCompile Include="..\snesrecomp\runner\src\snes\spc.c">
       <Filter>Snes</Filter>
     </ClCompile>
-    <ClCompile Include="..\snesrecomp\runner\src\tracing.c">
-      <Filter>Snes</Filter>
-    </ClCompile>
     <ClCompile Include="glsl_shader.c">
       <Filter>Common\Shader</Filter>
     </ClCompile>
@@ -133,9 +130,6 @@
       <Filter>Snes</Filter>
     </ClInclude>
     <ClInclude Include="..\snesrecomp\runner\src\snes\spc.h">
-      <Filter>Snes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\snesrecomp\runner\src\tracing.h">
       <Filter>Snes</Filter>
     </ClInclude>
     <ClInclude Include="..\snesrecomp\runner\src\snes\saveload.h">

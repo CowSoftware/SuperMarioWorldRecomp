@@ -212,7 +212,6 @@
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MinSpace</Optimization>
     </ClCompile>
     <ClCompile Include="smw_spc_player.c" />
-    <ClCompile Include="..\snesrecomp\runner\src\tracing.c" />
     <ClCompile Include="..\snesrecomp\runner\src\util.c" />
   </ItemGroup>
   <ItemGroup>
@@ -236,7 +235,6 @@
     <ClInclude Include="..\snesrecomp\runner\src\snes\snes_regs.h" />
     <ClInclude Include="..\snesrecomp\runner\src\snes\spc.h" />
     <ClInclude Include="smw_spc_player.h" />
-    <ClInclude Include="..\snesrecomp\runner\src\tracing.h" />
     <ClInclude Include="..\snesrecomp\runner\src\types.h" />
     <ClInclude Include="..\snesrecomp\runner\src\util.h" />
     <ClInclude Include="variables.h" />

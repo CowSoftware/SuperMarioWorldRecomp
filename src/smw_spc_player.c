@@ -7,7 +7,6 @@
 #include "types.h"
 #include "snes/spc.h"
 #include "snes/dsp_regs.h"
-#include "tracing.h"
 
 // SmwSpcPlayer is now a minimal SPC-image loader: it allocates a 64KB
 // buffer for APU RAM, resets DSP state to sane defaults, and uploads
