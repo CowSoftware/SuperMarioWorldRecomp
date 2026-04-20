@@ -527,16 +527,6 @@ int main(int argc, char** argv) {
     framedump_dir = argv[1];
     argc -= 2, argv += 2;
   }
-  int g_validate_bank04 = 0;
-  int g_validate_bank00 = 0;
-  if (argc >= 1 && strcmp(argv[0], "--validate") == 0) {
-    g_validate_bank04 = 1;
-    argc -= 1, argv += 1;
-  }
-  if (argc >= 1 && strcmp(argv[0], "--validate-bank00") == 0) {
-    g_validate_bank00 = 1;
-    argc -= 1, argv += 1;
-  }
   ParseConfigFile(config_file);
 
   // Initialize debug server
