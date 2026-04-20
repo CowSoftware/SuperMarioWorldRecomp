@@ -64,16 +64,12 @@ typedef struct Config {
   bool extend_y;
   bool no_sprite_limits;
   bool display_perf_title;
-  uint8 enable_msu;
-  bool resume_msu;
   bool disable_frame_delay;
   bool save_playthrough;
-  uint8 msuvolume;
   uint32 features0;
 
   char *memory_buffer;
   const char *shader;
-  const char *msu_path;
 
   bool enable_gamepad[2];
 
@@ -81,11 +77,6 @@ typedef struct Config {
   uint8 has_keyboard_controls;
 } Config;
 
-enum {
-  kMsuEnabled_Msu = 1,
-  kMsuEnabled_MsuDeluxe = 2,
-  kMsuEnabled_Opuz = 4,
-};
 enum {
   kGamepadBtn_Invalid = -1,
   kGamepadBtn_A,

@@ -395,24 +395,6 @@ static bool HandleIniConfig(int section, const char *key, char *value) {
     } else if (StringEqualsNoCase(key, "AudioSamples")) {
       g_config.audio_samples = (uint16)strtol(value, (char**)NULL, 10);
       return true;
-    } else if (StringEqualsNoCase(key, "EnableMSU")) {
-        if (StringEqualsNoCase(value, "opuz"))
-        g_config.enable_msu = kMsuEnabled_Opuz;
-      else if (StringEqualsNoCase(value, "deluxe"))
-        g_config.enable_msu = kMsuEnabled_MsuDeluxe;
-      else if (StringEqualsNoCase(value, "deluxe-opuz"))
-        g_config.enable_msu = kMsuEnabled_MsuDeluxe | kMsuEnabled_Opuz;
-      else 
-        return ParseBool(value, (bool*)&g_config.enable_msu);
-      return true;
-    } else if (StringEqualsNoCase(key, "MSUPath")) {
-      g_config.msu_path = value;
-      return true;
-    } else if (StringEqualsNoCase(key, "MSUVolume")) {
-      g_config.msuvolume = atoi(value);
-      return true;
-    } else if (StringEqualsNoCase(key, "ResumeMSU")) {
-      return ParseBool(value, &g_config.resume_msu);
     }
   } else if (section == 3) {
     if (StringEqualsNoCase(key, "Autosave")) {
@@ -467,7 +449,6 @@ static bool ParseOneConfigFile(const char *filename, int depth) {
 }
 
 void ParseConfigFile(const char *filename) {
-  g_config.msuvolume = 100;  // default msu volume, 100%
   g_config.save_playthrough = true;
 
   if (filename != NULL || !ParseOneConfigFile("smw.user.ini", 0)) {
