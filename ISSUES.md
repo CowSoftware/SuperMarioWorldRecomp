@@ -91,29 +91,21 @@ build would break. The stubs remain as no-ops; runtime cost is zero.
 Committed as part of the dp_sync cfg removal. Smell count: 146 unchanged
 (stubs still in src/dp_sync_bridge.c).
 
-## Tier 3b kPatchedCarrys_SMW — requires framework carry inference
+## Tier 3b kPatchedCarrys_SMW — CLOSED 2026-04-20
 
-The 45-entry `kPatchedCarrys_SMW` array patches specific ROM ADC/SBC
-instruction bytes to 0x00 (BRK); the CPU interpreter's BRK handler in
-`snesrecomp/runner/src/snes/cpu.c:768-794` reads the hook, then SETS
-or CLEARS carry before re-executing the original opcode. So the list
-fixes ROM-native buggy carry state when the INTERPRETER runs those
-instructions.
+Resolved by verifying the 46 patch addresses were already dead for
+runtime. Cross-check: `tools/check_patch_carrys.py` confirmed every
+entry lives in a recompiled bank (00-04) and outside every
+`exclude_range` in those cfgs. Recompiled paths thread C explicitly
+in generated code, so the interpreter never saw these sites — the
+BRK patches were masking nothing.
 
-Per the plan (Tier 3b), the right fix is carry-flag inference in
-`recomp.py` so recompiled code emits the intended carry state
-explicitly and the list can go to zero. That's a bigger framework
-task than overnight scope allows.
-
-**What I didn't do:** rip the list outright. The list is currently
-still dead for recompiled paths (recomp C doesn't use this mechanism
-— it's interpreter-only), but interpreter can still be reached via
-excluded regions or unrecompiled banks; pulling the list without the
-inference pass could mask the gap where carry inference fails.
-
-**Next session:** land a carry-flag inference pass in `recomp.py`,
-validate against SMW (list shrinks to zero), then delete the array
-and the `patch_carrys`/`patch_carrys_count` fields on `RtlGameInfo`.
+Ripped: the 46-entry array, `patch_carrys`/`patch_carrys_count` on
+`RtlGameInfo`, `kPatchedCarrysOrg[]` buffer, `FixupCarry()`, the
+init-time ROM-byte patcher, the `CpuOpcodeHook` carry loop, and the
+ADC/SBC carry-set switch cases in `cpu.c`'s BRK handler. Framework
+no longer needs a reaching-defs carry inference pass for this — the
+premise (interpreter executing ADC/SBC with unset carry) was stale.
 
 ## Tier 3g residual — HLE SPC executor body (~900 lines)
 

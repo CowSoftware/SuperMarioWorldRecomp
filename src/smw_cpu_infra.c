@@ -6,61 +6,6 @@
 #include "assets/smw_assets.h"
 
 
-static const uint32 kPatchedCarrys_SMW[] = {
-  0xFE1F,
-  0xFE26,
-  0xFE35,
-  0x1807a,
-  0x18081,
-  0x1A2CC,
-  0x1B066,
-  0x0fe79,
-  0x0fe80,
-  0x0fe88,
-
-  0x1DDFB,
-  0x1E0DD,
-  0x2AAFB,
-  0x2B05B,
-  0x2B0A2,
-  0x2B0A4,
-  0x2B1DD,
-  0x2B29B,
-  0x2B2F6,
-  0x3AD9B,
-  0x498A2,
-  0x2FBF5,
-  0x2FBF7,
-  0x2FC11,
-  0x2FC13,
-  0x2FC34,
-  0x2FBFA,
-  0x1D021,
-  0x1D028,
-  0x1B182,
-  0x1FDD6,
-  0x2B368,
-  0x2BB3E,
-
-  0x2C061,
-  0x2C06C,
-  0x2AD15,
-  0x02DDA1,
-
-  0x0399DB,
-
-  0x1BC75,
-  0x1BC78,
-  0x1BC7A,
-  0x2B228,
-
-  0x2f231,
-  0x2f23d,
-  0x2f245,
-
-  0x3C073,
-};
-
 static uint32 get_24(uint32 a) {
   return *(uint32*)SnesRomPtr(a) & 0xffffff;
 }
@@ -133,8 +78,6 @@ void SmwCpuInitialize(void) {
 
 const RtlGameInfo kSmwGameInfo = {
   .title = "smw",
-  .patch_carrys = kPatchedCarrys_SMW,
-  .patch_carrys_count = arraysize(kPatchedCarrys_SMW),
   .patch_bugs = NULL,
   .initialize = &SmwCpuInitialize,
   .run_frame = &SmwRunOneFrameOfGame,
