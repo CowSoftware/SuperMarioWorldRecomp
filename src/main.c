@@ -879,8 +879,6 @@ static void HandleCommand(uint32 j, bool pressed) {
     RtlSaveLoad(kSaveLoad_Replay, 256 + j - kKeys_ReplayRef);
   } else {
     switch (j) {
-    case kKeys_CheatLife: RtlCheat('w'); break;
-    case kKeys_CheatJump: RtlCheat('q'); break;
     case kKeys_ClearKeyLog: RtlClearKeyLog(); break;
     case kKeys_StopReplay: RtlStopReplay(); break;
     case kKeys_Fullscreen:

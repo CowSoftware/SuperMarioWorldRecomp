@@ -20,8 +20,6 @@ enum {
   kKeys_LoadRef_Last = kKeys_LoadRef + 19,
   kKeys_ReplayRef,
   kKeys_ReplayRef_Last = kKeys_ReplayRef + 19,
-  kKeys_CheatLife,
-  kKeys_CheatJump,
   kKeys_ClearKeyLog,
   kKeys_StopReplay,
   kKeys_Fullscreen,
