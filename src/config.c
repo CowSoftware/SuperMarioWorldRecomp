@@ -319,14 +319,6 @@ bool ParseBool(const char *value, bool *result) {
   return rv;
 }
 
-static bool ParseBoolBit(const char *value, uint32 *data, uint32 mask) {
-  bool tmp;
-  if (!ParseBool(value, &tmp))
-    return false;
-  *data = *data & ~mask | (tmp ? mask : 0);
-  return true;
-}
-
 static bool HandleIniConfig(int section, const char *key, char *value) {
   if (section == 0) {
     for (int i = 0; i < countof(kKeyNameId); i++) {
