@@ -133,7 +133,6 @@ void SmwCpuInitialize(void) {
 
 const RtlGameInfo kSmwGameInfo = {
   .title = "smw",
-  .game_id = kGameID_SMW,
   .patch_carrys = kPatchedCarrys_SMW,
   .patch_carrys_count = arraysize(kPatchedCarrys_SMW),
   .patch_bugs = NULL,
