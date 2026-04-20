@@ -531,7 +531,7 @@ int main(int argc, char** argv) {
   LoadAssets();
 
   g_gamepad[0].joystick_id = g_gamepad[1].joystick_id = -1;
-  g_snes_width = (g_config.extended_aspect_ratio * 2 + 256);
+  g_snes_width = 256;
   g_snes_height = 224;// (g_config.extend_y ? 240 : 224);
   g_ppu_render_flags = g_config.new_renderer * kPpuRenderFlags_NewRenderer |
     g_config.extend_y * kPpuRenderFlags_Height240 |
