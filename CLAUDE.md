@@ -42,21 +42,46 @@ We are NOT building an emulator.
 We are NOT writing interpretations of how the ROM "probably" works.
 We are NOT trying to make it "look close enough."
 
-We are achieving **measured behavioral equivalence** between:
-- the recompiled/native build (what `snesrecomp` produces)
-- an oracle implementation (smw-rev for behavior; SMWDisX for literal bytes)
+We are achieving **measured correctness** of the recompiled/native
+build (what `snesrecomp` produces) against what the ROM instructs.
 
-For Super Mario World work specifically:
-- **SMWDisX** is the primary literal-code oracle. It is 1:1 machine-code
-  truth. Use it for M/X state, function boundaries, data/code splits,
-  dispatch table interpretation, bank addressing.
-- **smw-rev** is the primary behavior oracle. It is a reconstructed
-  decompilation — NOT 1:1 machine-code truth. It may rename,
-  reorganize, or inline logic. Use it for high-level behavior
-  comparison only.
-- **Ghidra** is unreliable for 65816 semantics — prefer SMWDisX.
-- If a conclusion depends on non-literal smw-rev helper logic, say so
-  explicitly.
+**Tool priority for THIS project (updated 2026-04-20 after Tier 1
+reverse debugger shipped):**
+
+1. **Tier-1+ reverse debugger** (see `snesrecomp/REVERSE_DEBUGGER.md`).
+   Synchronous per-store observability inside the recompiled binary,
+   with full function attribution and TCP readout. Tiers 2-4 add
+   block-level stepping, reverse stepping, and C-line granularity
+   respectively. Build up a tier only when the current tier is
+   insufficient to close the bug.
+
+2. **SMWDisX** (`SMWDisX/bank_XX.asm`) — the primary literal-code
+   oracle. It is 1:1 machine-code truth for what the ROM tells the
+   CPU to do. Use it for: M/X state, function boundaries, data/code
+   splits, dispatch table interpretation, bank addressing, and
+   verifying that recomp-generated C is a faithful translation of
+   the ROM.
+
+3. **Ghidra** — secondary when SMWDisX is ambiguous. Known
+   unreliable for 65816 semantics; always cross-check against
+   SMWDisX.
+
+4. **Emulator with TCP debug server** — used in other recomp
+   projects that don't have a SMWDisX-class reference. Not the
+   primary tool here; kept as a tier-4 fallback for behavioral
+   double-checks when SMWDisX alone can't tell us whether a
+   computed value is intended.
+
+**Deprecated: smw-rev as a behavioral oracle.** The prior rule
+required comparing recomp output against smw-rev's reconstructed
+behavior. That was load-bearing before Tier 1 existed, because
+polled observability couldn't answer "is this byte intended?"
+Tier 1 answers questions about recomp's own store stream
+directly. For "is this the intended value?" questions, SMWDisX
+is the authoritative source — smw-rev is an interpreter that
+may itself diverge. Use smw-rev only for high-level sanity
+checks (e.g., does the final screen look right?), never as a
+mid-execution truth source.
 
 ---
 
@@ -67,12 +92,10 @@ real commercial code. SMW is the first such test case.
 
 For current work:
 - Super Mario World is the working reference target (game #1)
+- Tier-1+ reverse debugger is the primary observability tool
 - SMWDisX is the primary literal-code oracle
-- smw-rev is the primary behavior oracle when applicable
+- Ghidra / emulator+TCP are fallbacks when the above two aren't enough
 - the recompiler, runtime, and tooling are all considered incomplete
-
-If behavior is correct but the explanation depends on non-literal smw-rev
-helper logic, that MUST be acknowledged explicitly.
 
 ---
 
@@ -249,49 +272,37 @@ All debugging must use structured tooling:
 
 ---
 
-## 3. ALWAYS USE AN ORACLE
+## 3. USE THE RIGHT TOOL FOR THE QUESTION
 
-You MUST compare against an oracle.
+Different questions need different tools. The project priority order
+(per north-star update 2026-04-20):
 
-For SNES work there are TWO oracle types:
+1. **Tier-1+ reverse debugger** — for "which instruction wrote this
+   byte / in which order / with what inputs". Synchronous per-store
+   observability inside the recompiled binary. This answers almost
+   all "why does recomp produce X" questions directly. Tiers 2-4
+   add block-level stepping, reverse stepping, and C-line granularity
+   — build up as needed.
 
-### A. Literal oracle
-Use **Ghidra / ROM / disassembly truth** for:
-- control flow
-- instruction semantics
-- register width state (m/x)
-- banked addressing
-- DMA/HDMA setup
-- exact memory access interpretation
-- inline data vs code
-- long/short call behavior
+2. **SMWDisX** — for "what does the ROM literally instruct the CPU
+   to do". 1:1 machine-code truth. Use for: M/X state, function
+   boundaries, data/code splits, dispatch tables, bank addressing,
+   and verifying that recomp-generated C is a faithful translation.
 
-### B. Behavioral oracle
-Use **smw-rev** for:
-- behavior comparison
-- state comparison
-- function-level comparison where mappings are valid
-- visual/gameplay/output validation
-- cross-checking higher-level intent
+3. **Ghidra** — secondary when SMWDisX is ambiguous. Unreliable for
+   65816 semantics on its own; cross-check against SMWDisX.
 
-You MUST state which oracle is being used and why.
+4. **Emulator with TCP debug server** — tier-4 fallback used in other
+   recomp projects that lack a SMWDisX-class reference. Not a primary
+   tool here.
 
----
+State which tool you are using and why.
 
-## 4. DO NOT TREAT SMW-REV AS PERFECTLY 1:1
-
-smw-rev may:
-- reconstruct logic
-- rename and reorganize code
-- introduce inferred helper behavior
-- differ structurally while still behaving correctly
-
-Therefore:
-- do NOT assume source-level mismatch means bug
-- do NOT assume source-level similarity means correctness
-- use smw-rev primarily as a behavior oracle, not unquestioned literal truth
-
-If a comparison depends on smw-rev not being literal, that MUST be stated explicitly.
+**smw-rev is no longer a behavioral oracle for this project.** See the
+north-star section. The prior "always use smw-rev for behavior
+comparison" rule was load-bearing before Tier 1 existed and is now
+deprecated. smw-rev can inform high-level sanity checks (does the
+final screen look right?), never mid-execution truth.
 
 ---
 
