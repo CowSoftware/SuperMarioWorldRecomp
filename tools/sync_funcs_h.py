@@ -417,6 +417,21 @@ def main() -> int:
             cfg_pre = cfg_sig_before_gen.get(fname, cfg_sig)
             cfg_ret, cfg_params = recomp.parse_sig(cfg_pre)
             gen_ret, gen_params = recomp.parse_sig(cfg_sig)  # cfg_sig == gen sig here
+            # Return type: cfg pre-gen normally wins (cfg author's explicit
+            # `void` against SMWDisX is ROM truth and must beat gen's
+            # default-void emission). BUT: when cfg pre-gen flattened to
+            # `void`/`uint8` and gen produced a Y-carrying return
+            # (RetY/RetAY), gen wins. Sync's per-bank augment doesn't
+            # see all the auto-promote / sub-entry / cross-bank passes
+            # that recomp.py runs during a real regen, so it can miss
+            # promotions that the full pipeline performs. Trusting gen
+            # for these cases keeps funcs.h consistent with the body
+            # the linker will actually see.
+            if (cfg_ret in ('void', 'uint8')
+                    and gen_ret in ('RetY', 'RetAY')):
+                chosen_ret = gen_ret
+            else:
+                chosen_ret = cfg_ret
             # Merge params: start with cfg's explicit params (includes
             # live-in augment results, which is ROM-truth), then add any
             # extra REGISTER params from gen that cfg doesn't have. Skip
@@ -433,10 +448,10 @@ def main() -> int:
                 if n in REG_PARAM_NAMES:
                     merged_params.append((t, n))
             if not merged_params:
-                reconciled = f'{cfg_ret}()'
+                reconciled = f'{chosen_ret}()'
             else:
                 reconciled = (
-                    f'{cfg_ret}('
+                    f'{chosen_ret}('
                     + ','.join(f'{t}_{n}' for t, n in merged_params)
                     + ')'
                 )
