@@ -26,22 +26,6 @@ static void SmwLoadNextPlaybackSnapshot(void) {
   }
 }
 
-void SmwOnFrameInputs(uint32 inputs) {
-  // APUI02 reflection — the ancilla code tests this at WRAM $18c5.
-  uint8 apui02 = RtlApuReadReg(2);
-  if (apui02 != g_ram[kSmwRam_APUI02]) {
-    g_ram[kSmwRam_APUI02] = apui02;
-    RtlRecordPatchByte(&g_ram[kSmwRam_APUI02], 1);
-  }
-  // Whether controllers are plugged in (top two bits of input word).
-  uint32 new_my_flags = inputs >> 30;
-  if (new_my_flags != g_ram[kSmwRam_my_flags]) {
-    assert(new_my_flags <= 255);
-    g_ram[kSmwRam_my_flags] = (uint8)new_my_flags;
-    RtlRecordPatchByte(&g_ram[kSmwRam_my_flags], 1);
-  }
-}
-
 void SmwOnFinishLevel(void) {
   if (!RtlIsReplayMode() && g_config.save_playthrough) {
     SmwSavePlaythroughSnapshot();
