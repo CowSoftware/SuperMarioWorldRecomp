@@ -605,6 +605,23 @@ error_reading:;
     debug_server_set_ram(snes->ram, 0x20000);
   }
 
+#ifdef ENABLE_ORACLE_BACKEND
+  // Start the emulator-oracle backend with the same ROM. Gated on the
+  // Oracle build configuration only; Release|x64 never sees any of this.
+  // The runner typically loads smw.sfc from cwd via the asset pipeline
+  // (argv[0] is usually NULL), so we default to "smw.sfc" in cwd when
+  // argv[0] was not supplied.
+  {
+    extern int snes_oracle_init_default(const char *rom_path);
+    const char *rom_path = (argv[0] && *argv[0]) ? argv[0] : "smw.sfc";
+    int rc = snes_oracle_init_default(rom_path);
+    if (rc != 0)
+      fprintf(stderr, "[oracle] init failed rc=%d (rom=%s)\n", rc, rom_path);
+    else
+      fprintf(stderr, "[oracle] backend ready (rom=%s)\n", rom_path);
+  }
+#endif
+
   SDL_Window *window = SDL_CreateWindow(kWindowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, window_width, window_height, g_win_flags);
   if(window == NULL) {
     printf("Failed to create window: %s\n", SDL_GetError());
@@ -744,6 +761,19 @@ error_reading:;
     uint32 inputs = g_input_state | g_gamepad[0].axis_buttons | g_gamepad[1].axis_buttons << 12;
     inputs |= TickScript();
     RtlRunFrame(inputs | GetActiveControllers());
+
+#ifdef ENABLE_ORACLE_BACKEND
+    // Step the oracle emulator with the same input. First-light does
+    // not guarantee input-bit parity between the runner's 12-bit-per-
+    // player layout and the bridge's SNES-hardware layout — good
+    // enough for attract-demo comparison (no input), needs remapping
+    // work before live gameplay divergence analysis.
+    {
+      extern void emu_oracle_run_frame(uint16_t j1, uint16_t j2);
+      emu_oracle_run_frame((uint16_t)(inputs & 0xFFF),
+                           (uint16_t)((inputs >> 12) & 0xFFF));
+    }
+#endif
 
     // Bank validation removed — 100% oracle mode, no banks enabled.
 

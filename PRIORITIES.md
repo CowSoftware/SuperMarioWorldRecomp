@@ -78,44 +78,42 @@ audio thread. `RtlRenderAudio` no longer gates on an upload flag.
 Harness 2052/2052 (+1 over pre-real-SPC: HandleSPCUploads_Inner
 is now a real function being checked). All 79 framework tests pass.
 
-## Active: chase the first real divergence under real SPC
+## Active: chase visible visual divergence (world spawn-in etc.)
 
-Real SPC is landed but the $03 trace still differs from the oracle
-at boot — recomp writes nothing, oracle writes `$00 → $FD` at
-frame 0 and `$FD → $04` at frame 2. That baseline hasn't moved
-since session start, so SPC was one confounding source, not the
-only one. Now that the SPC handshake isn't masking anything, the
-`$03` divergence is the live signal for whatever framework gap
-fires next.
+Colors look right under real SPC. The remaining WRAM divergence is
+one stubborn byte at `$0003` (see `ISSUES.md`) — deprioritized as
+not user-visible. What IS user-visible right now is visual corruption
+around world spawn-in and related transitions. That's the live signal
+for whatever framework gap fires next, and it's higher-information
+than chasing a 1-byte scratch residue.
 
-Plan: run `/recomp-debug` Phase 3 classification on the $03
-divergence.
+Plan: `/recomp-debug` Phase 1-3 on the first visible visual symptom.
 
-1. Sync both runtimes to frame 0, scan the full WRAM delta via
-   `tools/divergence_diff.py scan --advance --start 0 --end 500`
-   — the target byte isn't necessarily $03; it's wherever the
-   first deterministic write differs.
-2. For each divergent address, ring-buffer-trace both sides to
-   find the first write that disagrees. The WRITING function on
-   the oracle side names the code region the recomp isn't
-   reaching (or is reaching with wrong inputs).
-3. Classify: framework bug → fix the recompiler. Runtime bug →
-   fix the runtime. ROM-faithful behaviour → update expectations.
-   No cfg additions that encode framework-derivable facts.
+1. Pick one concrete reproducible symptom (e.g. "first frame of
+   overworld spawn-in"). Capture a precise oracle/recomp frame
+   range where they're still equivalent → first diverge → fallout.
+2. Dump full relevant state (CPU, WRAM, VRAM, CGRAM, OAM, DMA,
+   HDMA, scroll regs, BG mode, forced blank) via TCP at each
+   step in the range.
+3. Timeseries-diff to find first divergence. Distinguish root
+   divergence from later fallout (CLAUDE.md timeseries rule).
+4. Classify: framework bug → fix recompiler. Runtime bug → fix
+   runtime. No cfg additions that encode framework-derivable facts.
 
 Stop condition: one pinning test lands for whatever bug surfaces
-(rule 1b), recomp $03 trace matches oracle through frame 5, and
-we can demonstrate any further divergence is genuinely downstream.
+(rule 1b), the visible symptom is gone, and the new first
+divergence (if any) is genuinely downstream.
 
 ### Scope guardrails
 
-- Do not retire `g_spc_player` yet — it's not on the critical path
-  anymore but keeping it compiled proves the HLE code still builds.
-  Queued for a separate targeted deletion commit after $03 lands.
-- Do not touch `kPatchedCarrys_SMW[]` in this pass. That's a
-  framework gap (carry-flag inference), queued separately.
-- The harness is 2052/2052 so static checks aren't the pain point
-  right now. Dynamic (runtime) behaviour is where bugs hide.
+- Do not retire `g_spc_player` yet — keep it compiled as proof the
+  HLE path still builds. Queued for separate deletion commit.
+- Do not touch `kPatchedCarrys_SMW[]` in this pass. Framework gap
+  (carry-flag inference), queued separately.
+- Harness is 2052/2052; static checks aren't the pain point.
+  Dynamic (runtime) behaviour is where bugs hide.
+- `$0003` residue is parked (ISSUES.md). Do not rabbit-hole into it
+  unless the visual chase naturally implicates it.
 
 ## Queued (post-$03, pre-hardening)
 
