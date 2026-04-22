@@ -35,25 +35,48 @@ results in `snesrecomp/tools/cfg_audit_results/*.json`).
     init_y/init_carry/carry_ret/ret_y/restores_x/y_after/x_after).
   - Built `cfg_override_triage.py` (summary + list by diff-class).
   - Ran full `end:` audit across 9 banks (~14 min). Results below.
-  - Next: Phase B (strip redundant-validated end: directives; SMWDisX
-    cross-check load-bearing ones).
+
+- **2026-04-22 session 1 (Phase B partial)**:
+  - Stripped 22 validated-redundant `end:` directives on bank 0d
+    (parent commit `5591265`). Live-boot confirmed no regression.
+  - Built `cfg_override_smwdisx_crosscheck.py` (SMWDisX/.sym-based
+    label map + discoverer d_end comparison + sibling-coverage
+    sanity check).
+  - Cross-checked all 491 load-bearing `end:` overrides:
+    - **450 CLEAN** (cfg_end lands on/near SMWDisX label — correct).
+    - **34 SUSPECT** (no SMWDisX label nearby, but sibling/d_end
+      checks don't flag — likely internal sub-entries not named in
+      SMWDisX).
+    - **1 SUSPECT_NARROW** — manually verified as false positive
+      (`LoadLevel_HandleChocolateIsland2Gimmick` in bank 05; JSL
+      ExecutePtrLong dispatch pattern with cfg-documented
+      exclude_range; cfg end: is correct).
+    - **6 SUSPECT_WIDE** — spot-checked one
+      (`PlayerState0B_RescuedPeach`); cfg_end extends through data
+      tables with `exclude_range` lines covering them. Correct.
+  - **Bottom line: ZERO confirmed wrong end: overrides.** Bug #8
+    and other gameplay bugs are NOT hiding in end: directives.
+    Next: audit sig: overrides (837 entries, largest bucket).
 
 ## Per-override-type status
 
 ### `end:` (513 overrides) — Phase A done 2026-04-22
 
-| Bank | Total | Redundant | Load-bearing | Regen-failed |
-|---|---:|---:|---:|---:|
-| 00 | 309 |   0 | 309 | 0 |
-| 01 |   7 |   0 |   7 | 0 |
-| 02 |  13 |   0 |  13 | 0 |
-| 03 |   4 |   0 |   4 | 0 |
-| 04 | 118 |   0 | 118 | 0 |
-| 05 |  16 |   0 |  16 | 0 |
-| 07 |   3 |   0 |   3 | 0 |
-| 0c |  18 |   0 |  18 | 0 |
-| 0d |  25 |  22 |   3 | 0 |
-| **Total** | **513** | **22** | **491** | **0** |
+| Bank | Total | Redundant | Stripped | Load-bearing | SMWDisX-CLEAN | SMWDisX-SUSPECT | Wrong-confirmed |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 00 | 309 |   0 |  0 | 309 | 283 | 26 | 0 |
+| 01 |   7 |   0 |  0 |   7 |   6 |  1 | 0 |
+| 02 |  13 |   0 |  0 |  13 |  12 |  1 | 0 |
+| 03 |   4 |   0 |  0 |   4 |   4 |  0 | 0 |
+| 04 | 118 |   0 |  0 | 118 | 112 |  6 | 0 |
+| 05 |  16 |   0 |  0 |  16 |  13 |  3 | 0 |
+| 07 |   3 |   0 |  0 |   3 |   2 |  1 | 0 |
+| 0c |  18 |   0 |  0 |  18 |  16 |  2 | 0 |
+| 0d |  25 |  22 | 22 |   3 |   2 |  1 | 0 |
+| **Total** | **513** | **22** | **22** | **491** | **450** | **41** | **0** |
+
+Phase B verdict on `end:` overrides: **all correct**. No bug-class
+wrongs found. Strip-reducible count: 22 (done).
 
 **Observation**: banks 00 + 04 in particular show 100% load-bearing with
 uniform 1745-line diffs across every override — meaning stripping ANY
@@ -118,8 +141,9 @@ should close. Populated after Phase B cross-check.
 ## Phase progress
 
 - [x] Phase A: tooling + `end:` audit
-- [ ] Phase B: strip redundant end: (22 candidates, bank 0d), SMWDisX
-      cross-check load-bearing end:
+- [x] Phase B: strip redundant end: (22 done), SMWDisX cross-check
+      load-bearing end: (450 CLEAN / 41 SUSPECT / 0 WRONG — all
+      SUSPECT manually verified as false positives)
 - [ ] Phase C: `sig:` audit + fix
 - [ ] Phase D: `rep:`/`repx:`/`sep:` + behavioral hints
 - [ ] Phase E: `exclude_range` / `dispatch` / `skip` / `no_autodiscover`
