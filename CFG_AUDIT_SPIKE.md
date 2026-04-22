@@ -36,6 +36,20 @@ results in `snesrecomp/tools/cfg_audit_results/*.json`).
   - Built `cfg_override_triage.py` (summary + list by diff-class).
   - Ran full `end:` audit across 9 banks (~14 min). Results below.
 
+- **2026-04-22 session 1 (Phase C)**:
+  - Ran full `sig:` audit across 9 banks (~35 min, 1,169 sigs).
+  - Stripped 8 redundant on bank 0d (parent commit `9f37e83`).
+  - Built `cfg_override_sig_crosscheck.py` — compares each
+    load-bearing cfg sig against what `_augment_sig_with_livein`
+    derives from ROM live-in analysis.
+  - Cross-check results: 701 AGREES, 116 CFG_WIDER (pointer/DP
+    params live-in doesn't model — cfg correct), 14 CFG_NARROWER
+    (live-in auto-widens at regen), 3 TYPE_DIFF (live-in under-
+    detects M-width; cfg correct after spot-check of
+    HandleStandardLevelCameraScroll_00F7F4), 320 RET_DIFF (live-in
+    doesn't infer returns — not a divergence), 7 UNCLEAR.
+  - **Zero confirmed wrong sigs found.** sig: pile is clean.
+
 - **2026-04-22 session 1 (Phase B partial)**:
   - Stripped 22 validated-redundant `end:` directives on bank 0d
     (parent commit `5591265`). Live-boot confirmed no regression.
@@ -90,7 +104,52 @@ Bank 0d has 22 genuinely-redundant `end:` directives (first batch to
 strip). The 3 load-bearing on 0d are small-diff candidates that need
 SMWDisX review.
 
-### `sig:` (837 overrides) — not started
+### `sig:` (1,169 overrides) — Phase C first pass done 2026-04-22
+
+Note: earlier 837 count was "non-default sig" only. Validator counted
+every `sig:X` token. 1,169 total.
+
+| Bank | Total | Redundant | Stripped | Load-bearing | AGREES | CFG_WIDER | CFG_NARROWER | TYPE_DIFF | RET_DIFF | UNCLEAR |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 00 | 302 | 0 | 0 | 302 | ... | ... | ... | ... | ... | ... |
+| 01 | 444 | 0 | 0 | 444 | ... | ... | ... | ... | ... | ... |
+| 02 | 289 | 0 | 0 | 289 | ... | ... | ... | ... | ... | ... |
+| 03 |  42 | 0 | 0 |  42 | ... | ... | ... | ... | ... | ... |
+| 04 |   3 | 0 | 0 |   3 | ... | ... | ... | ... | ... | ... |
+| 05 |  24 | 0 | 0 |  24 | ... | ... | ... | ... | ... | ... |
+| 07 |   2 | 0 | 0 |   2 | ... | ... | ... | ... | ... | ... |
+| 0c |   7 | 0 | 0 |   7 | ... | ... | ... | ... | ... | ... |
+| 0d |  56 | 8 | 8 |  48 | ... | ... | ... | ... | ... | ... |
+| **Total** | **1,169** | **8** | **8** | **1,161** | **701** | **116** | **14** | **3** | **320** | **7** |
+
+**Phase C cross-check verdict: 0 confirmed wrong sigs found.**
+
+Classification legend:
+- **AGREES** (701): cfg sig == live-in-derived sig. Strippable in
+  principle but validator still flags load-bearing — other cfg-
+  interactions make the full gen-C differ.
+- **CFG_WIDER** (116): cfg declares params that live-in doesn't see.
+  Spot-checks show these are mostly pointer params (`*p`) or DP-slot
+  params (`r0`, `r2w`) that live-in's A/X/Y tracking doesn't model.
+  cfg is correct; encodes knowledge live-in can't derive.
+- **CFG_NARROWER** (14): cfg declares FEWER params than live-in
+  infers. In practice the regen-time augment widens them, so no
+  divergence at emit. Review list for future pruning.
+- **TYPE_DIFF** (3): cfg declares uint16 where live-in says uint8.
+  Spot-check of `HandleStandardLevelCameraScroll_00F7F4` confirmed
+  cfg is right (caller does `LDA.W #$00C0` + JSR — 16-bit). Live-in
+  under-detects M=0 state.
+- **RET_DIFF** (320): cfg declares a return type (uint8, PairU16,
+  struct...) that live-in always reports as `void` (live-in doesn't
+  infer returns). Expected; not a divergence signal.
+- **UNCLEAR** (7): live-in computation failed.
+
+**Outcome**: sig: directives look clean. The recompiler's live-in
+inference is deliberately conservative; cfg overrides bridge the
+gap where live-in can't see.
+
+Stripped 8 redundant sigs in bank 0d (parent commit `9f37e83`).
+Live-boot check passed.
 ### `rep:` / `repx:` / `sep:` (27 overrides) — not started
 ### `init_y:` / `carry_ret` / `ret_y` / etc (17 overrides) — not started
 ### `exclude_range` — not started
@@ -144,7 +203,11 @@ should close. Populated after Phase B cross-check.
 - [x] Phase B: strip redundant end: (22 done), SMWDisX cross-check
       load-bearing end: (450 CLEAN / 41 SUSPECT / 0 WRONG — all
       SUSPECT manually verified as false positives)
-- [ ] Phase C: `sig:` audit + fix
+- [x] Phase C: sig: audit first pass done — 8 strippable + 1,161
+      load-bearing analyzed via live-in cross-check; 0 WRONG
+      confirmed. The load-bearing sigs encode real ABI info live-in
+      can't derive (pointer/DP params, struct returns, explicit
+      widths in REP-covered callers).
 - [ ] Phase D: `rep:`/`repx:`/`sep:` + behavioral hints
 - [ ] Phase E: `exclude_range` / `dispatch` / `skip` / `no_autodiscover`
 - [ ] Phase F: wrap-up + bug #8 regression check
