@@ -150,18 +150,57 @@ gap where live-in can't see.
 
 Stripped 8 redundant sigs in bank 0d (parent commit `9f37e83`).
 Live-boot check passed.
-### `rep:` / `repx:` / `sep:` (35 overrides) — Phase D done 2026-04-22
+### `rep:` / `repx:` / `sep:` (35 overrides) — Phase D done 2026-04-22, REVISED after validator fix
 
-| Type | Total | Redundant | Load-bearing | Verified CORRECT |
+| Type | Total | Redundant (strippable) | Load-bearing | Verified CORRECT |
 |---|---:|---:|---:|---:|
-| rep  | 21 | 0 | 21 | 21 |
-| repx | 12 | 0 | 12 | 12 |
-| sep  |  2 | 0 |  2 |  2 |
+| rep  | 21 | 12 |  9 | 21 |
+| repx | 12 |  9 |  3 | 12 |
+| sep  |  2 |  0 |  2 |  2 |
 
-All 35 manually reviewed via `cfg_override_mode_crosscheck.py`. Each
-encodes M/X state at entry points reached via JSR from a caller that
-set mode BEFORE the call — decoder's linear walk can't infer this
-state. All correct.
+Initial pass (before validator fix) claimed all 35 load-bearing. A
+later empirical probe showed OwTileAnimations_0480B9 stripped had a
+1-line cosmetic diff with proper path resolution — the validator was
+classifying overrides as load-bearing due to path-resolution
+confounders (stripped cfg in bare tmp dir lacked sibling bank*.cfg
+and funcs.h search paths, while baseline regen had both). Validator
+now mirrors the full repo layout (recomp/+src/funcs.h) into tmp_dir
+so stripped and baseline share identical resolution context.
+
+A second framework gap surfaced: the caller-M/X inference pass's
+"joint-unanimity + old_entry == 0" guards were too conservative.
+
+1. Joint-unanimity: blocked propagation when callers unanimously
+   agree on M=0 but split on X (common: $04:9885 OW_TilePos_Calc).
+   Now decides M and X bits independently.
+2. old_entry == 0: blocked merging derived bits into partial cfg
+   overrides (e.g. cfg says `repx:X`, callers say M=0 — the M=0 bit
+   should be added). Now merges, keeping SEP marker 0x40 opaque.
+
+6 new framework tests in `test_mx_inference_from_callers.py` pin the
+behaviour.
+
+After validator fix + framework fix: 21 of 35 overrides strip cleanly
+(commits snesrecomp 0a71864 + parent ddf4295). Remaining 14 load-
+bearing break down as:
+  - 9 rep: (callers split on M OR dispatch-only / hook-metadata
+    cosmetic)
+  - 3 repx:
+  - 2 sep: (GameMode08_FileSelect + ScrollLayer3 — internal SEP
+    markers the decoder's linear walk can't derive from callers)
+
+Three of the remaining are cosmetic-only (diff=2 from hook-metadata
+flag on the first insn — the decoder stamps `insn.m_flag` before the
+in-body REP fires, which changes the RDB_INSN_HOOK's `writes` field
+by 1 bit without affecting generated behaviour). Candidates for a
+future emitter fix that suppresses m_flag stamp on a function's own
+entry REP/SEP.
+
+gen-C diff: bank 04 1039 lines reflects real correctness improvement
+where previously-partial `rep:X` overrides (no `repx:X`) caused mid-
+body LDX.B reads to emit as 8-bit while the ROM actually entered at
+X=0. funcs.h widened 2 sigs (PlayerState00_00F8F2,
+PlayerState00_00F9C9) that now correctly carry uint8 k.
 
 ### Behavioral hints (17 overrides) — Phase D done 2026-04-22
 
