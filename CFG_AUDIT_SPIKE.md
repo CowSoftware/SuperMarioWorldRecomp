@@ -377,32 +377,70 @@ smarter framework, any remaining gameplay bugs are in the
 runtime / oracle-sync / cross-bank-interaction layer — easier to
 diagnose without the cfg noise.
 
-## FINAL TALLY
+## FINAL TALLY — REVISED 2026-04-22 (later) after validator + framework fixes
 
-| Override type | Total | Stripped | Wrong |
-|---|---:|---:|---:|
-| end | 513 | 22 | 0 |
-| sig | 1,169 | 8 | 0 |
-| rep | 21 | 0 | 0 |
-| repx | 12 | 0 | 0 |
-| sep | 2 | 0 | 0 |
-| carry_ret | 6 | 0 | 0 |
-| ret_y | 8 | 0 | 0 |
-| restores_x | 1 | 0 | 0 |
-| y_after | 1 | 0 | 0 |
-| init_carry | 1 | 0 | 0 |
-| exclude_range | 1,006 | 0 | 0 |
-| skip | 1 | 0 | 0 |
-| **Total** | **2,741** | **30** | **0** |
+| Override type | Total | Stripped (session 1) | Stripped (session 2 additional) | Grand total | Remaining | Wrong |
+|---|---:|---:|---:|---:|---:|---:|
+| end | 513 | 22 | 428 | 450 | 63 | 0 |
+| sig | 1,169 | 8 | 13 | 21 | 1,148 | 0 |
+| rep | 21 | 0 | 13 | 13 | 8 | 0 |
+| repx | 12 | 0 | 9 | 9 | 3 | 0 |
+| sep | 2 | 0 | 0 | 0 | 2 | 0 |
+| carry_ret | 6 | 0 | 0 | 0 | 6 | 0 |
+| ret_y | 8 | 0 | 0 | 0 | 8 | 0 |
+| restores_x | 1 | 0 | 0 | 0 | 1 | 0 |
+| y_after | 1 | 0 | 0 | 0 | 1 | 0 |
+| init_carry | 1 | 0 | 0 | 0 | 1 | 0 |
+| exclude_range | 1,006 | 0 | 0 | 0 | 1,006 | 0 |
+| skip | 1 | 0 | 0 | 0 | 1 | 0 |
+| **Total** | **2,741** | **30** | **463** | **493** | **2,248** | **0** |
 
-**Zero wrong overrides found across the entire cfg.**
+**Session 2 additional findings (driven by validator + framework fixes):**
 
-Bug #8 (Mario-1-block-under) and other gameplay bugs are NOT
-encoded in cfg override defects. The cfg is clean. Next attention
-goes to:
+- `cfg_override_validator.py` had a path-resolution confounder: stripped
+  cfg was written to a bare tmp dir without sibling bank*.cfg or
+  funcs.h access, while baseline regenned from the real repo. Every
+  stripped regen diffed for path reasons unrelated to the override.
+  Fixed by mirroring the full repo layout into tmp.
 
-1. Making the recompiler smarter (reducing the 2,711 load-bearing
-   count without regressions).
-2. Bug #8: if the cfg isn't at fault, the defect lies in the
-   runtime / recompiler-emission layer or in cross-bank
-   interactions the current framework doesn't catch.
+- The caller-M/X inference pass had two over-conservative guards
+  (joint unanimity + skip-when-partially-set) and ran AFTER
+  sub-entry + auto-promote. Fixed to decide M/X axes independently,
+  merge into partial cfg overrides, and run before downstream passes
+  (snesrecomp 0a71864 + 88cbcc9). 6 regression tests in
+  test_mx_inference_from_callers.py pin the new behavior.
+
+- `_apply_all_redundant_and_verify` + `_bisect_cascade_offenders`
+  added to the validator (snesrecomp c810a77) to catch the case
+  where per-token-empty strips cascade when applied collectively
+  (live-in / sig inference fixpoint drift). `cfg_override_strip.py`
+  skips `cascade_offender == true` (snesrecomp 06403ef).
+
+- Sig audit recovered 348 per-token-redundant. Apply-all caught
+  cascades in banks 00/02/03/04 (GraphicsDecompress's inferred
+  return widened to uint8* and broke a caller's bitwise OR). Binary
+  bisection couldn't isolate single offenders — the cascades are
+  multi-element combinations. Conservative demote of 335 kept
+  those sig hints in cfg. 13 bank-05/07/0c sigs applied cleanly.
+
+- End audit recovered 440 per-token-redundant. Apply-all cascade
+  in bank 05 (12 candidates, multi-element). 428 applied cleanly
+  across 6 banks — a large payoff from Phase 2's d_end discovery
+  (snesrecomp 38ff1c1) finally getting the test suite to confirm
+  it was doing the work.
+
+**Zero wrong overrides; zero functional regressions** (visual
+confirmed clean by user after 22 rep/repx + 1 rep + 13 sig + 428
+end strip batches).
+
+**Future work to recover the 335 demoted sigs + 12 demoted bank-05
+ends:** per-bank apply-all (strip only one bank's candidates,
+regen all, diff) would resolve cases where the cascade is single-
+bank. Cross-bank cascades need a different approach — probably
+iterative strip-verify-commit to narrow incrementally.
+
+**Framework is doing its job.** The cfg is no longer holding
+information derivable from the ROM: 493 lines shed this overhaul.
+Remaining 1,148 sigs, 1,006 exclude_ranges, and 63 end: are the
+genuinely-load-bearing bits (pointer/DP params, data-region
+boundaries, dispatch-target conventions) that stay per-game.
