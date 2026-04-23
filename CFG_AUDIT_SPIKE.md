@@ -377,6 +377,43 @@ smarter framework, any remaining gameplay bugs are in the
 runtime / oracle-sync / cross-bank-interaction layer — easier to
 diagnose without the cfg noise.
 
+## FINAL TALLY — REVISED 2026-04-22 (session 4) post-merge framework smartening
+
+After merging session-3 work to main, the `feature/framework-gaps-post-cfg`
+branch added a further round of framework improvements to drain the
+last easy strips.
+
+Framework improvements (snesrecomp):
+- MX-inference now considers JMP/JML/BRL as caller-state evidence,
+  not just JSR/JSL. Tail-called functions now get caller-derived
+  entry M/X. (94ca445, 0cea2d0)
+- `_looks_like_carry_return` accepts CMP/CPX/CPY as carry-setters
+  before RTS, broadening from CLC/SEC only. The A-writer bail-out
+  stays strict — relaxing it over-promoted via the RetY detection
+  chain and broke builds. (0cea2d0)
+- Validator `_linear_greedy_safe_subset` as fallback when bisection
+  misses multi-element cascade. When bisection finds 0 single-
+  offenders but apply-all still cascaded, greedy walks candidates
+  linearly and admits each that keeps all 9 banks clean. (849a24f)
+
+Results from re-auditing every category post-session-3:
+- rep/repx/sep re-audit: 0 new strippable (13+9+0 already shed, 13
+  remaining are MID-function or cosmetic hook-metadata).
+- carry_ret/ret_y re-audit: 0 new strippable. The cfg entries there
+  stay load-bearing — the functions have cfg-declared shapes the
+  framework still can't infer (multi-JSL chains, Entry2 sub-entries
+  without Y write, CMP patterns with A writes elsewhere in body).
+- Sig cascade maximize: 0 recoverable from 59 name demotes + 335
+  sig demotes. Confirmed by linear-greedy (snesrecomp 849a24f).
+  The per-token-redundant verdict for intra-bank types was inflated;
+  validator now checks all banks per-token (snesrecomp 5a964d0).
+
+**Final cfg state (session 4 commit): 1,357 of 2,741 stripped (49.5%).**
+The remaining 1,384 entries are genuinely load-bearing; no further
+strips achievable without cross-game-applicable framework features
+(DP-slot live-in inference or pointer-param auto-detect, tier-2
+targets d/e from the original handoff).
+
 ## FINAL TALLY — REVISED 2026-04-22 (session 3) after all-banks validator + exclude_range support
 
 | Override type | Total | Stripped | Remaining | Wrong |
