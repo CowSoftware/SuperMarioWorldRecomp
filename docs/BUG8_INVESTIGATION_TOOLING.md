@@ -2,13 +2,20 @@
 
 ## Status
 
-**Bug #8 root cause narrowed to a single flow-path divergence in
-`RunPlayerBlockCode_EB77` at mode-0x04 entry.** Recomp takes a
-different branch from oracle through the ~850-line gen'd C body of
-this function, causing the $72 (PlayerInAir) clearing chain to not
-fire during level-load. By the time `$EE3A` is reached on recomp
-(frame 210, mid-mode-0x07), Mario has already fallen one tile deeper
-than oracle. Full fix deferred to next session.
+**Bug #8 root cause pinpointed to a single codegen gap: `CODE_00F44D`'s
+cfg signature is `RetAY(uint8_k)`, which loses the function's `INX INX`
+X-register modification.** Every subsequent F44D call in the chain
+then receives the wrong X → wrong Map16 lookup → wrong return value →
+wrong branch → the `$72 PlayerInAir` clearing path is never taken.
+Fix requires adding X-return framework support (RetAXY type or
+auto-inferred net-X-delta); deferred to next session as task #10.
+
+Investigation path: `attract-demo visual bug` → `$72 stuck at 0x24` →
+`$EE3A clearing code not entered` → `EB77's JSR F44D at $ED4A returns
+A=0` → `F44D called with wrong X=0 instead of expected 0x08` →
+`F44D's INX INX loses X propagation because cfg sig is RetAY not RetAXY`.
+Each step was pinned by a specific tool — the retrospective below
+covers the full chain.
 
 ## What this document is
 
@@ -254,15 +261,48 @@ means what.
   looked definitive but were buffer-truncated. Multi-window pagination
   revealed the real picture.
 
+## Tools #8 and #9 used in the same session to close the diagnosis
+
+### 8. Recomp Tier-4 `trace_insn` with PC window filter
+
+Captures every recomp 65816-equivalent instruction with full
+register state (A, X, Y, B, m-flag, x-flag). Armed immediately
+before a single `step 1` that advances the frame counter into
+mode 0x04, then queried with `pc_lo=0xeb77 pc_hi=0xeeff` to show
+only EB77's body. Revealed the exact 49-instruction recomp path
+through EB77 and confirmed recomp has `X=0` at `$ED4A` (before
+JSR F44D) and `X=0` at `$EBB2` (after the FIRST JSR F44D at
+`$EBB1` — the INX INX was lost).
+
+### 9. Side-by-side insn diff script
+
+Combined recomp's Tier-4 trace with oracle's `emu_insn_trace` for
+the same PC window. Aligned by PC and marked divergent-X lines. Made
+the divergence a single-line finding: at `$EBB2`, oracle X=0x0002,
+recomp X=0x0000. That's the moment F44D's effect on X is lost.
+
+Without both traces this would have required manual walkthrough of
+~850 lines of gen'd C against the ROM — the diff script turned it
+into a one-page report.
+
 ## Next-session concrete plan
 
-Per task #8: the remaining work is a `break_add` bisect inside
-`RunPlayerBlockCode_EB77` (ROM $EB77 → $EE11 → $EE3A path). Set
-breakpoints at every RDB_BLOCK_HOOK PC between $EB77 and $EE3A (about
-~20 block entries), step once at mode-0x04 entry, observe which
-break fires. Oracle reaches $EDF7 → $EE11 → $EE3A; recomp diverges
-somewhere before $EE3A. The first missing break identifies the
-divergence point.
+Task #10: add framework-level X-return support. Two paths:
+
+**(a) RetAXY return type** — add `typedef struct RetAXY { uint8 a, x, y; }`
+to `types.h`, extend recomp.py's sig parser + emitter to recognize
+`RetAXY`, then update F44D's cfg line from `sig:RetAY` to `sig:RetAXY`.
+Explicit per-function annotation.
+
+**(b) Auto-inferred `x_modifies` net-delta** — mirror the existing
+`y_modifies` infrastructure. A pass computes each function's net X
+change (how many INX minus DEX minus LDX-with-const at entry etc.),
+and the emitter inserts `caller_x += delta` after JSR to such
+callees. Generalizes to any X-modifying function without cfg edits.
+
+Option (b) is cleaner per rule 0 (framework fix, not per-function
+cfg). Start there. Regen all 9 banks, rebuild Oracle|x64, run v2
+golden test, hand exe to user for visual confirmation.
 
 ## Key TCP commands used
 
