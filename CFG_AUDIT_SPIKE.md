@@ -377,6 +377,60 @@ smarter framework, any remaining gameplay bugs are in the
 runtime / oracle-sync / cross-bank-interaction layer — easier to
 diagnose without the cfg noise.
 
+## FINAL TALLY — REVISED 2026-04-22 (session 3) after all-banks validator + exclude_range support
+
+| Override type | Total | Stripped | Remaining | Wrong |
+|---|---:|---:|---:|---:|
+| end | 513 | 450 | 63 | 0 |
+| sig | 1,169 | 21 | 1,148 | 0 |
+| rep | 21 | 13 | 8 | 0 |
+| repx | 12 | 9 | 3 | 0 |
+| sep | 2 | 0 | 2 | 0 |
+| carry_ret | 6 | 0 | 6 | 0 |
+| ret_y | 8 | 0 | 8 | 0 |
+| restores_x | 1 | 0 | 1 | 0 |
+| y_after | 1 | 0 | 1 | 0 |
+| init_carry | 1 | 0 | 1 | 0 |
+| exclude_range | 1,006 | 864 | 142 | 0 |
+| skip | 1 | 0 | 1 | 0 |
+| **Total** | **2,741** | **1,357** | **1,384** | **0** |
+
+**Session 3 additional findings:**
+
+- sig audit re-run after strips: 335 "per-token-owning-bank-redundant"
+  turned out to be cross-bank load-bearing (cfg_override_maximize
+  admitted 0/335). Fixed validator to check ALL banks per-token
+  (snesrecomp 5a964d0). The per-token test is now a true
+  strip-and-test-everywhere. Cost: 9x regen per candidate (sig
+  audit went from ~45 min to hours, but bucket is now reliable).
+  True sig strippable: 13.
+
+- Behavioral hints audit: all 17 load-bearing (carry_ret 6,
+  ret_y 8, restores_x 1, y_after 1, init_carry 1). Confirms
+  Phase D manual review.
+
+- exclude_range support added to validator (snesrecomp c0b3e2e).
+  New 'line' kind for standalone directives (strip = remove line).
+  INTRA_BANK_TYPES flag lets these skip the 9x all-banks cost
+  since their effects stay in one bank.
+
+- End bank-05's 12 demoted end: candidates: maximize recovered 0
+  (all cross-bank load-bearing).
+
+- exclude_range audit: **864 of 1,006 redundant (86%)!** Biggest
+  cleanup bucket. Strips went cleanly; only 4 cosmetic lines of
+  cross-bank cascade in bank 01's gen-C. The 142 remaining are
+  genuinely load-bearing — mostly bank 01 (140 entries, high
+  data/code interleaving).
+
+**Grand total session 1+2+3: 1,357 of 2,741 overrides shed (50%).**
+
+**Outstanding audits:**
+- name (cross-bank aliases, 956 entries, audit running).
+- preserves (3 entries, edge case).
+- default_init_y (2 entries, bank-wide hint).
+- data (1 entry, explicit ROM extraction).
+
 ## FINAL TALLY — REVISED 2026-04-22 (later) after validator + framework fixes
 
 | Override type | Total | Stripped (session 1) | Stripped (session 2 additional) | Grand total | Remaining | Wrong |
