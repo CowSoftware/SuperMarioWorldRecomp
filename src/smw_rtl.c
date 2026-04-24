@@ -40,23 +40,7 @@ void SmwDrawPpuFrame(void) {
 void SmwRunOneFrameOfGame(void) {
   if (*(uint16 *)reset_sprites_y_function_in_ram == 0)
     I_RESET();
-  // NMI handler runs BEFORE the main-loop game code each frame.
-  //
-  // Rationale — hardware timing: on real SNES, NMI fires at vblank
-  // start (between frames). Its handler polls HW_JOY ($4218/$4219)
-  // into the $15-$18 mirror. The NEXT frame's game logic then reads
-  // that mirror for player input. In the attract demo, the game
-  // logic OVERWRITES $16 with a scripted demo input before Mario's
-  // physics reads it; that overwrite must be the LAST write in the
-  // frame, else Mario's input reverts to the HW-poll value (0).
-  //
-  // Previously this loop was `internal(); nmi();` — the NMI's
-  // joypad poll ran AFTER the demo write each frame, stomping the
-  // demo's $0x81 with 0 and leaving Mario with no input. Visible
-  // symptom: Mario never accelerates or jumps in the attract demo,
-  // koopa walks into him and "kills" him (no stomp input), demo
-  // transitions to gameover/respawn. Diagnosed 2026-04-24.
-  auto_00_816A();
   SmwRunOneFrameOfGame_Internal();
+  auto_00_816A();
 }
 
