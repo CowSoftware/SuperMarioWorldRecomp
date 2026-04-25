@@ -45,7 +45,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
 SMWDISX = REPO / 'SMWDisX'
@@ -222,6 +222,12 @@ _MACRO_RE = re.compile(
     r'^\s*%(?P<name>\w+)\((?P<args>[^)]*)\)\s*$'
 )
 _DATA_RE = re.compile(r'^\s*(d[bwdl])\s+(.+)$', re.IGNORECASE)
+# Inline anonymous label prefix ("+ INSTR", "- INSTR", "++ INSTR", "-- INSTR"
+# etc.). asar treats `+`/`-` as anonymous labels that may appear inline
+# before any instruction or data directive. Stripping the prefix lets us
+# parse the rest as a normal line — leaving it intact would drop PC
+# tracking on every such line.
+_ANON_LABEL_PREFIX_RE = re.compile(r'^[+\-]+\s+')
 
 
 def _eval_ver_predicate(expr: str) -> Optional[bool]:
@@ -327,6 +333,11 @@ def parse_bank(bank_hex: str) -> Tuple[Dict[int, Tuple[str, str]], Set[int]]:
             # Anonymous labels: just "+", "-", "++", "--".
             if re.match(r'^[+\-]+$', body):
                 continue
+            # Inline anonymous-label prefix: strip and continue parsing.
+            m_anon = _ANON_LABEL_PREFIX_RE.match(body)
+            if m_anon:
+                body = body[m_anon.end():]
+                low = body.lower()
 
             # Macro invocation.
             m = _MACRO_RE.match(body)
@@ -402,6 +413,194 @@ def parse_bank_mnems(bank_hex: str) -> Dict[int, Tuple[str, str]]:
     """Legacy wrapper returning only the mnem_map (pre-data_addrs split)."""
     mnems, _ = parse_bank(bank_hex)
     return mnems
+
+
+def parse_bank_dispatches(
+    bank_hex: str,
+    helper_labels: Set[str],
+) -> Dict[int, int]:
+    """Parse SMWDisX/bank_XX.asm and return {full_addr_of_jsl: dw_count}
+    for every JSL/JML to a dispatch helper.
+
+    A dispatch helper here is any label name in `helper_labels` (the
+    caller resolves these from cfg.jsl_dispatch / jsl_dispatch_long via
+    the symbol table).
+
+    The dw count is the number of contiguous `dw <symbol>` lines
+    immediately following the JSL line, skipping blank lines and
+    comments. The disassembler emits these inline tables right after
+    each ExecutePtr-style call, so the count is the table extent that
+    SMWDisX considers correct. The recompiler must agree.
+
+    PC tracking mirrors `parse_bank`. Sites are skipped (not emitted)
+    when PC is unknown at the JSL line — that means we can't ground-
+    truth them anyway. The next label anchor will recover.
+    """
+    bank = int(bank_hex, 16)
+    path = SMWDISX / f'bank_{bank_hex.upper()}.asm'
+    if not path.exists():
+        return {}
+
+    out: Dict[int, int] = {}
+    pc: Optional[int] = None
+    cond_stack: List[Tuple[bool, bool]] = []
+
+    def is_active() -> bool:
+        return all(a for a, _ in cond_stack)
+
+    JSL_TARGET_RE = re.compile(
+        r'^\s*(?:JSL|JML)(?:\.[BWL])?\s+([A-Za-z_][\w]*)\s*$',
+        re.IGNORECASE,
+    )
+
+    lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
+        stripped = _COMMENT_RE.sub('', raw).rstrip()
+        if not stripped.strip():
+            i += 1
+            continue
+        body = stripped.strip()
+        low = body.lower()
+
+        if low.startswith('if '):
+            verdict = _eval_ver_predicate(body[3:])
+            cond_stack.append((verdict if verdict is not None else False, False))
+            i += 1
+            continue
+        if low == 'else':
+            if cond_stack:
+                active, _ = cond_stack.pop()
+                cond_stack.append((not active, True))
+            i += 1
+            continue
+        if low == 'endif':
+            if cond_stack:
+                cond_stack.pop()
+            i += 1
+            continue
+        if not is_active():
+            i += 1
+            continue
+
+        m = _ORG_RE.match(stripped)
+        if m:
+            pc = int(m.group(1), 16)
+            i += 1
+            continue
+
+        m = _LABEL_LINE_RE.match(body)
+        if m:
+            am = _LABEL_ADDR_RE.match(m.group(1))
+            if am:
+                pc = int(am.group(1), 16)
+            i += 1
+            continue
+        if re.match(r'^[+\-]+$', body):
+            i += 1
+            continue
+        m_anon = _ANON_LABEL_PREFIX_RE.match(body)
+        if m_anon:
+            body = body[m_anon.end():]
+            low = body.lower()
+
+        m = _MACRO_RE.match(body)
+        if m:
+            expanded = _expand_macro(m.group('name'), m.group('args'))
+            if expanded and pc is not None:
+                _mn, _sf, _op = expanded
+                size = _insn_size(_mn, _sf, _op)
+                if size is not None:
+                    pc += size
+                else:
+                    pc = None
+            else:
+                pc = None
+            i += 1
+            continue
+
+        m = _DATA_RE.match(body)
+        if m:
+            directive = m.group(1).lower()
+            items = [x for x in m.group(2).split(',') if x.strip()]
+            size_per = {'db': 1, 'dw': 2, 'dl': 3, 'dd': 4}[directive]
+            if pc is not None:
+                pc += size_per * len(items)
+            i += 1
+            continue
+
+        if body.split(None, 1)[0].lower() in (
+                'incsrc', 'incbin', 'table', 'pushtable', 'pulltable',
+                'warnpc', 'check', 'autoclean', 'freespace',
+                'namespace', 'pushbase', 'pullbase', 'base',
+                'fillbyte', 'fill', 'pad', 'optimize',
+                'assert', 'print', 'expression', 'math',
+                'define', 'undef', 'while', 'macro', 'endmacro',
+                'function'):
+            pc = None
+            i += 1
+            continue
+
+        # Dispatch detection: JSL/JML to a known helper label.
+        m_jsl = JSL_TARGET_RE.match(body)
+        if m_jsl and m_jsl.group(1) in helper_labels:
+            jsl_pc = pc
+            # Advance PC past the 4-byte JSL/JML.
+            if pc is not None:
+                pc += 4
+            # Walk forward, count contiguous dw OR dl entries (the
+            # disassembler emits dw for ExecutePtr-style helpers and dl
+            # for ExecutePtrLong-style; never both in the same table).
+            # Strip inline anonymous-label prefix on table lines so that
+            # `+ dw Label` parses as data.
+            j = i + 1
+            count = 0
+            entry_size = 0
+            while j < len(lines):
+                nxt = _COMMENT_RE.sub('', lines[j]).rstrip()
+                if not nxt.strip():
+                    j += 1
+                    continue
+                nxt_body = nxt.strip()
+                am = _ANON_LABEL_PREFIX_RE.match(nxt_body)
+                if am:
+                    nxt_body = nxt_body[am.end():]
+                m_d = _DATA_RE.match(nxt_body)
+                if m_d and m_d.group(1).lower() in ('dw', 'dl'):
+                    sz = 2 if m_d.group(1).lower() == 'dw' else 3
+                    if entry_size and sz != entry_size:
+                        break
+                    entry_size = sz
+                    items = [x for x in m_d.group(2).split(',') if x.strip()]
+                    count += len(items)
+                    if pc is not None:
+                        pc += sz * len(items)
+                    j += 1
+                    continue
+                break
+            if jsl_pc is not None and (jsl_pc >> 16) == bank:
+                out[jsl_pc] = count
+            i = j
+            continue
+
+        m_ins = _INSTR_RE.match(body)
+        if m_ins:
+            mn = m_ins.group('mnem').upper()
+            sf = m_ins.group('suffix') or ''
+            op = m_ins.group('operand') or ''
+            size = _insn_size(mn, sf, op)
+            if size is None:
+                pc = None
+            elif pc is not None:
+                pc += size
+            i += 1
+            continue
+
+        pc = None
+        i += 1
+
+    return out
 
 
 # ---------------------------------------------------------------------------
