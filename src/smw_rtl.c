@@ -38,8 +38,17 @@ void SmwDrawPpuFrame(void) {
 }
 
 void SmwRunOneFrameOfGame(void) {
-  if (*(uint16 *)reset_sprites_y_function_in_ram == 0)
+  // First-call reset gate. Was previously `if (*(uint16*)$7F8000 == 0) I_RESET()`,
+  // which silently relied on WRAM being zero-initialized at power-on. Real hardware
+  // (and snes9x) power-on WRAM is 0x55, so that check would never fire and I_RESET
+  // would be skipped, leaving $0100 (GameMode) at 0x55 — out-of-bounds for the
+  // 42-entry dispatch table at PC 0x009329. Use a host-side bool instead so the
+  // gate is independent of WRAM contents.
+  static bool g_did_reset = false;
+  if (!g_did_reset) {
     I_RESET();
+    g_did_reset = true;
+  }
   SmwRunOneFrameOfGame_Internal();
   auto_00_816A();
 }

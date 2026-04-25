@@ -446,11 +446,23 @@ void MkDir(const char *s) {
 }
 
 #include <signal.h>
+extern uint8_t g_ram[0x20000];
+static void dump_sprite_state(void) {
+  // Dump SMW sprite-state arrays so dispatch-OOB crashes name the offending slot.
+  fprintf(stderr, "Sprite state at crash:\n");
+  fprintf(stderr, "  $9E (sprite type)   :");
+  for (int k = 0; k < 12; k++) fprintf(stderr, " %02x", g_ram[0x9e + k]);
+  fprintf(stderr, "\n  $14C8 (status)      :");
+  for (int k = 0; k < 12; k++) fprintf(stderr, " %02x", g_ram[0x14c8 + k]);
+  fprintf(stderr, "\n  $0100 (GameMode)    : %02x\n", g_ram[0x100]);
+  fprintf(stderr, "  $7F:8000 (init sig) : %02x %02x\n", g_ram[0x18000], g_ram[0x18001]);
+}
 static void crash_handler(int sig) {
   extern const char *g_last_recomp_func;
   extern void RecompStackDump(void);
   fprintf(stderr, "\n*** CRASH (signal %d) in recomp func: %s ***\n",
           sig, g_last_recomp_func ? g_last_recomp_func : "(unknown)");
+  dump_sprite_state();
   RecompStackDump();
   fflush(stderr);
   _exit(128 + sig);
@@ -472,6 +484,7 @@ static LONG WINAPI seh_handler(EXCEPTION_POINTERS* info) {
             kind == 0 ? "read" : (kind == 1 ? "write" : "execute"),
             (void*)fault_addr);
   }
+  dump_sprite_state();
   RecompStackDump();
   fflush(stderr);
   return EXCEPTION_EXECUTE_HANDLER;
