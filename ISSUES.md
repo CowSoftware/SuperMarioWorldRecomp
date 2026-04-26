@@ -90,39 +90,49 @@ case.
 
 ### Cross-issue pattern hunting (the actual work)
 
-The framework's job here is to find what's COMMON across A–D, not
-to write four targeted patches. Initial hypotheses to test:
+**UPDATE 2026-04-26:** Issue C investigation traced the visible
+"Yoshi-floats-up" bug to the chain:
 
-1. **Sig-loss class** (same family as the just-closed thunk fix).
-   B, C, D all involve sprite/tile state crossing function
-   boundaries. If a callee's `(uint8 j)` got dropped to `()` for
-   any of them, the caller's Y is silently 0, which looks exactly
-   like "stuck at wrong Y" (B) and "wrong velocity sign" (C). The
-   thunk fix imported cross-bank auto sigs; we may need the same
-   for **non-auto** named entries whose sigs are AUGMENTED but not
-   declared in cfg (Issue B/C/D's callees may fall in that class).
+  1. Dispatch over-decode at $01:FAC3 produces phantom entries.
+  2. discover_bank promotes one of them ($01:ECEC) as auto_01_ECEC.
+  3. The promotion CAPS Spr035_Yoshi's emit range at $ECEC.
+  4. Spr035_Yoshi's body decode reaches PC=$ECED (after a JSR);
+     end_addr=$ECEC, so the emit closes with a fall-through call
+     to auto_01_ECEC.
+  5. auto_01_ECEC runs the on-ground init block `LDA #$F0; STA
+     SpriteYSpeed,X` every frame, defeating gravity.
 
-2. **Dispatch-overread class** (Tier-1 test currently red on 29
-   sites). Each over-decode by 1+ entries means a dispatch routes
-   one slot beyond the real table — could explain D (Layer-2 tile
-   fetch routing wrong) and possibly A (sprite-render dispatch on
-   2nd cycle picking up a stale handler index).
+**Fix attempts on 2026-04-26 all regressed visible behavior:**
+  * Reject auto-promote inside MANUAL func body — broke koopa
+    shell-pop (real handlers like SprStatus06 get rejected too).
+  * Reject only when dispatch_only AND inside-MANUAL-reach —
+    broke YoshiEgg→Yoshi spawn (BigBoo dispatch handlers at
+    $F8F8 are dispatch-only AND inside-reach).
+  * Suppress the fall-through emit when next_func is dispatch-
+    only — broke Yoshi-egg spawn entirely (the egg sprite
+    handler vanished).
 
-3. **State-init class** — A specifically. The recompiler may be
-   emitting a function-local variable that should be WRAM-backed,
-   so the second invocation sees the previous run's local init
-   value. This would explain why "first run works, second run
-   doesn't" for sprite render state.
+**All three reverted to baseline state.** The dispatch-overread
+class is genuinely subtle: phantom promotions and real body-
+internal sub-handlers are not distinguishable by any single
+heuristic tried so far. **Future attempts MUST run the
+attract-demo regression test** (`test_attract_demo_regression`)
+which encodes the visible-behavior invariants we know are
+correct. Whack-a-mole regression debt is the cost of NOT
+running that test between attempts.
 
-Triage plan:
-- Use golden-oracle on each symptom to land it on a state-byte
-  divergence point.
-- Cluster the divergence points by which recompiler pass produced
-  the divergent code.
-- Fix the dominant cluster's pass; regen; re-evaluate all four.
-- Repeat for the next-largest cluster.
+Status as of commit:
+  - Issue A (koopa invisible on 2nd attract cycle): OPEN
+  - Issue B (Mario falls below ground at ?-block): OPEN
+  - Issue C (Yoshi floats up after ?-block hatch): OPEN
+  - Issue D (BG slope dirt blocks): OPEN
+  - Koopa-stomp shell-pop: WORKING (regression-tested via
+    test_attract_demo_regression invariants)
+  - Yoshi-egg → Yoshi spawn: WORKING (regression-tested)
+  - Demo-progresses-past-boot: WORKING (regression-tested)
 
-Do NOT add per-game cfg entries to mask any of A–D.
+Do NOT add per-game cfg entries (exclude_range, jsl_dispatch counts)
+to mask any of A–D unless framework fixes are blocked.
 
 ---
 
