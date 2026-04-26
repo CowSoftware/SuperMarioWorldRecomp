@@ -1,4 +1,132 @@
-# Open issues + session summary from autonomous rip session 2026-04-19/20
+# Open issues — SMW recomp
+
+## Working policy (read first)
+
+We do not fix individual visible bugs in isolation. Each visible
+symptom is a probe into a recompiler / framework gap. The goal is
+to identify the **underlying class of recompiler bug** that
+generated the symptom, fix that class in the framework
+(`snesrecomp/`), regen all banks, and re-evaluate every symptom
+together. Per-game cfg shimming is last-resort (Rule 0).
+
+If individual symptom diagnosis is necessary to extract the
+underlying pattern, do that work — but the deliverable is always a
+framework fix, never a per-symptom patch.
+
+Methodology: golden-oracle (`docs/GOLDEN_TESTING.md`) — diff
+recomp vs embedded snes9x at the same state-sync point, narrow to
+seed byte → write trace → call trace → block trace → instruction
+trace → framework fix.
+
+---
+
+## Session 2026-04-25/26 — post-koopa-shell-pop attract-demo audit
+
+Branch: `post-koopa-discovery` (both repos). Landed:
+- `dispatch-extent-multipass` merged to main (snesrecomp): WIP
+  reorder + cross-bank thunk-sig-from-funcs.h fix. Koopa-shell-pop
+  closed (user visual-confirmed).
+
+After the koopa fix the attract demo runs further than ever, and
+the following new visible issues surface. **Looking for the
+underlying recompiler-framework cause(s), not per-issue fixes.**
+
+### Issue A — koopa fails to render on 2nd attract-demo cycle
+
+The first cycle of the attract demo renders the koopa correctly.
+On the **second** cycle, the koopa is invisible until Mario stomps
+it; the moment of contact, the koopa + shell render and eject
+normally. After that the koopa is normal for the rest of the cycle.
+
+**Suspected class:** state-carryover across attract-demo loop. A
+sprite slot's render state (OAM tile, palette, draw-enable bit)
+isn't being re-initialized when the demo restarts. Possible
+underlying causes: a NMI/init pathway whose first-time-only branch
+isn't taken on the second run, OR a recompiler-side stale-variable
+issue where a function's second invocation reuses a stale local
+that should have been reset to a WRAM value.
+
+### Issue B — Mario falls below ground level near a ?-block
+
+When Mario walks toward a specific ?-block, he sinks slightly
+below the ground tile (single-pixel-or-two drop, then he's stuck
+at the lower Y). Should remain at ground level.
+
+**Suspected class:** collision/ground-detection Y-axis arithmetic.
+Likely related to Issue C below — both touch ?-block interactions
+on the Y axis.
+
+### Issue C — Yoshi floats into the sky after emerging from a ?-block
+
+When the ?-block spawns Yoshi, Yoshi rises and keeps rising (no
+gravity applied, or wrong Y velocity sign). Yoshi should drop and
+land normally.
+
+**Suspected class:** Y-velocity initialization or gravity-apply
+pathway on sprite-spawn-from-block. Strongly likely same root
+cause as Issue B (both: Y-axis state at ?-block interaction
+boundary).
+
+### Issue D — random dirt tiles in background-layer slopes
+
+Hilly slopes in the BG layer (Layer 2) show random dirt blocks
+scattered across the green slope, breaking up the slope graphic.
+ROM has clean slope tiles; recomp injects extra dirt tiles.
+
+**Suspected class:** tilemap upload / Layer-2 BG-tilemap source
+selection. Possible underlying causes: a tile-source pointer
+loaded with wrong width (M=8 vs M=16) reading from the wrong
+half-byte; or a dispatch-table over-read (Tier-1 test still red on
+29 sites) routing a Layer-2 tile-fetch to the wrong handler.
+
+### Issue E — berries now positioned correctly (positive)
+
+Berries previously rendered too far up-left on the bushes. They
+now snap to the correct positions. **No new fix targeted this** —
+it was an inadvertent side-effect of the dispatch-extent / thunk-
+sig fix landing on main. Worth tracking because it confirms the
+class of bug we just fixed reaches farther than the koopa-shell
+case.
+
+### Cross-issue pattern hunting (the actual work)
+
+The framework's job here is to find what's COMMON across A–D, not
+to write four targeted patches. Initial hypotheses to test:
+
+1. **Sig-loss class** (same family as the just-closed thunk fix).
+   B, C, D all involve sprite/tile state crossing function
+   boundaries. If a callee's `(uint8 j)` got dropped to `()` for
+   any of them, the caller's Y is silently 0, which looks exactly
+   like "stuck at wrong Y" (B) and "wrong velocity sign" (C). The
+   thunk fix imported cross-bank auto sigs; we may need the same
+   for **non-auto** named entries whose sigs are AUGMENTED but not
+   declared in cfg (Issue B/C/D's callees may fall in that class).
+
+2. **Dispatch-overread class** (Tier-1 test currently red on 29
+   sites). Each over-decode by 1+ entries means a dispatch routes
+   one slot beyond the real table — could explain D (Layer-2 tile
+   fetch routing wrong) and possibly A (sprite-render dispatch on
+   2nd cycle picking up a stale handler index).
+
+3. **State-init class** — A specifically. The recompiler may be
+   emitting a function-local variable that should be WRAM-backed,
+   so the second invocation sees the previous run's local init
+   value. This would explain why "first run works, second run
+   doesn't" for sprite render state.
+
+Triage plan:
+- Use golden-oracle on each symptom to land it on a state-byte
+  divergence point.
+- Cluster the divergence points by which recompiler pass produced
+  the divergent code.
+- Fix the dominant cluster's pass; regen; re-evaluate all four.
+- Repeat for the next-largest cluster.
+
+Do NOT add per-game cfg entries to mask any of A–D.
+
+---
+
+# Historical: Open issues + session summary from autonomous rip session 2026-04-19/20
 
 ## Session summary
 
