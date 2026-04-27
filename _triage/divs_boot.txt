@@ -1,0 +1,110 @@
+[diff] free-running runtime for 1.0s to populate both rings...
+[diff] window populated after 1.00s wall-clock
+[diff] pulling rings (pc 0x0..0xffffff)...
+[diff] rec block entries: 262144
+[diff] emu insn entries:  1048576
+[diff] auto-anchor at PC 0x0080a0 (rec_idx=358, emu_idx=102578)
+
+[diff] anchor: rec_idx=358 emu_idx=102578
+[diff] compared=100 skipped_unknown=0 not_found=0
+[diff] divergences: 100
+  rec_idx=   358 emu_idx= 102578 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x0 emu=0x69 X: rec=0xe3e emu=0x15b4 Y: rec=0x5 emu=0x6e
+  rec_idx=   359 emu_idx= 102583 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x0 emu=0x69 X: rec=0xe3d emu=0x15b3 Y: rec=0x5 emu=0x6e
+  rec_idx=   360 emu_idx= 102587 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x0 emu=0x69 X: rec=0xe3d emu=0x15b3 Y: rec=0x6 emu=0x6f
+  rec_idx=   361 emu_idx= 102589 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x0 emu=0x69 X: rec=0xe3d emu=0x15b3 Y: rec=0x6 emu=0x6f
+  rec_idx=   362 emu_idx= 102602 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x1 emu=0x6a X: rec=0xe3d emu=0x15b3 Y: rec=0x6 emu=0x6f
+  rec_idx=   363 emu_idx= 102607 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x1 emu=0x6a X: rec=0xe3c emu=0x15b2 Y: rec=0x6 emu=0x6f
+  rec_idx=   364 emu_idx= 102611 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x1 emu=0x6a X: rec=0xe3c emu=0x15b2 Y: rec=0x7 emu=0x70
+  rec_idx=   365 emu_idx= 102613 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x1 emu=0x6a X: rec=0xe3c emu=0x15b2 Y: rec=0x7 emu=0x70
+  rec_idx=   366 emu_idx= 102624 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x2 emu=0x6b X: rec=0xe3c emu=0x15b2 Y: rec=0x7 emu=0x70
+  rec_idx=   367 emu_idx= 102629 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x2 emu=0x6b X: rec=0xe3b emu=0x15b1 Y: rec=0x7 emu=0x70
+  rec_idx=   368 emu_idx= 102633 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x2 emu=0x6b X: rec=0xe3b emu=0x15b1 Y: rec=0x8 emu=0x71
+  rec_idx=   369 emu_idx= 102648 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x3 emu=0x6c X: rec=0xe3b emu=0x15b1 Y: rec=0x8 emu=0x71
+  rec_idx=   370 emu_idx= 102653 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x3 emu=0x6c X: rec=0xe3a emu=0x15b0 Y: rec=0x8 emu=0x71
+  rec_idx=   371 emu_idx= 102657 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x3 emu=0x6c X: rec=0xe3a emu=0x15b0 Y: rec=0x9 emu=0x72
+  rec_idx=   372 emu_idx= 102659 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x3 emu=0x6c X: rec=0xe3a emu=0x15b0 Y: rec=0x9 emu=0x72
+  rec_idx=   373 emu_idx= 102672 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x4 emu=0x6d X: rec=0xe3a emu=0x15b0 Y: rec=0x9 emu=0x72
+  rec_idx=   374 emu_idx= 102677 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x4 emu=0x6d X: rec=0xe39 emu=0x15af Y: rec=0x9 emu=0x72
+  rec_idx=   375 emu_idx= 102681 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x4 emu=0x6d X: rec=0xe39 emu=0x15af Y: rec=0xa emu=0x73
+  rec_idx=   376 emu_idx= 102683 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x4 emu=0x6d X: rec=0xe39 emu=0x15af Y: rec=0xa emu=0x73
+  rec_idx=   377 emu_idx= 102694 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x5 emu=0x6e X: rec=0xe39 emu=0x15af Y: rec=0xa emu=0x73
+  rec_idx=   378 emu_idx= 102699 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x5 emu=0x6e X: rec=0xe38 emu=0x15ae Y: rec=0xa emu=0x73
+  rec_idx=   379 emu_idx= 102703 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x5 emu=0x6e X: rec=0xe38 emu=0x15ae Y: rec=0xb emu=0x74
+  rec_idx=   380 emu_idx= 102718 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x6 emu=0x6f X: rec=0xe38 emu=0x15ae Y: rec=0xb emu=0x74
+  rec_idx=   381 emu_idx= 102723 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x6 emu=0x6f X: rec=0xe37 emu=0x15ad Y: rec=0xb emu=0x74
+  rec_idx=   382 emu_idx= 102727 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x6 emu=0x6f X: rec=0xe37 emu=0x15ad Y: rec=0xc emu=0x75
+  rec_idx=   383 emu_idx= 102729 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x6 emu=0x6f X: rec=0xe37 emu=0x15ad Y: rec=0xc emu=0x75
+  rec_idx=   384 emu_idx= 102740 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x7 emu=0x70 X: rec=0xe37 emu=0x15ad Y: rec=0xc emu=0x75
+  rec_idx=   385 emu_idx= 102745 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x7 emu=0x70 X: rec=0xe36 emu=0x15ac Y: rec=0xc emu=0x75
+  rec_idx=   386 emu_idx= 102749 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x7 emu=0x70 X: rec=0xe36 emu=0x15ac Y: rec=0xd emu=0x76
+  rec_idx=   387 emu_idx= 102751 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x7 emu=0x70 X: rec=0xe36 emu=0x15ac Y: rec=0xd emu=0x76
+  rec_idx=   388 emu_idx= 102764 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x8 emu=0x71 X: rec=0xe36 emu=0x15ac Y: rec=0xd emu=0x76
+  rec_idx=   389 emu_idx= 102769 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x8 emu=0x71 X: rec=0xe35 emu=0x15ab Y: rec=0xd emu=0x76
+  rec_idx=   390 emu_idx= 102773 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x8 emu=0x71 X: rec=0xe35 emu=0x15ab Y: rec=0xe emu=0x77
+  rec_idx=   391 emu_idx= 102786 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x9 emu=0x72 X: rec=0xe35 emu=0x15ab Y: rec=0xe emu=0x77
+  rec_idx=   392 emu_idx= 102791 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x9 emu=0x72 X: rec=0xe34 emu=0x15aa Y: rec=0xe emu=0x77
+  rec_idx=   393 emu_idx= 102795 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x9 emu=0x72 X: rec=0xe34 emu=0x15aa Y: rec=0xf emu=0x78
+  rec_idx=   394 emu_idx= 102797 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x9 emu=0x72 X: rec=0xe34 emu=0x15aa Y: rec=0xf emu=0x78
+  rec_idx=   395 emu_idx= 102810 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xa emu=0x73 X: rec=0xe34 emu=0x15aa Y: rec=0xf emu=0x78
+  rec_idx=   396 emu_idx= 102815 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xa emu=0x73 X: rec=0xe33 emu=0x15a9 Y: rec=0xf emu=0x78
+  rec_idx=   397 emu_idx= 102819 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xa emu=0x73 X: rec=0xe33 emu=0x15a9 Y: rec=0x10 emu=0x79
+  rec_idx=   398 emu_idx= 102834 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xb emu=0x74 X: rec=0xe33 emu=0x15a9 Y: rec=0x10 emu=0x79
+  rec_idx=   399 emu_idx= 102839 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xb emu=0x74 X: rec=0xe32 emu=0x15a8 Y: rec=0x10 emu=0x79
+  rec_idx=   400 emu_idx= 102843 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xb emu=0x74 X: rec=0xe32 emu=0x15a8 Y: rec=0x11 emu=0x7a
+  rec_idx=   401 emu_idx= 102845 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xb emu=0x74 X: rec=0xe32 emu=0x15a8 Y: rec=0x11 emu=0x7a
+  rec_idx=   402 emu_idx= 102856 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xc emu=0x75 X: rec=0xe32 emu=0x15a8 Y: rec=0x11 emu=0x7a
+  rec_idx=   403 emu_idx= 102861 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xc emu=0x75 X: rec=0xe31 emu=0x15a7 Y: rec=0x11 emu=0x7a
+  rec_idx=   404 emu_idx= 102865 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xc emu=0x75 X: rec=0xe31 emu=0x15a7 Y: rec=0x12 emu=0x7b
+  rec_idx=   405 emu_idx= 102867 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xc emu=0x75 X: rec=0xe31 emu=0x15a7 Y: rec=0x12 emu=0x7b
+  rec_idx=   406 emu_idx= 102880 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xd emu=0x76 X: rec=0xe31 emu=0x15a7 Y: rec=0x12 emu=0x7b
+  rec_idx=   407 emu_idx= 102885 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xd emu=0x76 X: rec=0xe30 emu=0x15a6 Y: rec=0x12 emu=0x7b
+  rec_idx=   408 emu_idx= 102889 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xd emu=0x76 X: rec=0xe30 emu=0x15a6 Y: rec=0x13 emu=0x7c
+  rec_idx=   409 emu_idx= 102902 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xe emu=0x77 X: rec=0xe30 emu=0x15a6 Y: rec=0x13 emu=0x7c
+  rec_idx=   410 emu_idx= 102907 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xe emu=0x77 X: rec=0xe2f emu=0x15a5 Y: rec=0x13 emu=0x7c
+  rec_idx=   411 emu_idx= 102911 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xe emu=0x77 X: rec=0xe2f emu=0x15a5 Y: rec=0x14 emu=0x7d
+  rec_idx=   412 emu_idx= 102913 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xe emu=0x77 X: rec=0xe2f emu=0x15a5 Y: rec=0x14 emu=0x7d
+  rec_idx=   413 emu_idx= 102926 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0xf emu=0x78 X: rec=0xe2f emu=0x15a5 Y: rec=0x14 emu=0x7d
+  rec_idx=   414 emu_idx= 102931 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0xf emu=0x78 X: rec=0xe2e emu=0x15a4 Y: rec=0x14 emu=0x7d
+  rec_idx=   415 emu_idx= 102935 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xf emu=0x78 X: rec=0xe2e emu=0x15a4 Y: rec=0x15 emu=0x7e
+  rec_idx=   416 emu_idx= 102937 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0xf emu=0x78 X: rec=0xe2e emu=0x15a4 Y: rec=0x15 emu=0x7e
+  rec_idx=   417 emu_idx= 102948 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x10 emu=0x79 X: rec=0xe2e emu=0x15a4 Y: rec=0x15 emu=0x7e
+  rec_idx=   418 emu_idx= 102953 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x10 emu=0x79 X: rec=0xe2d emu=0x15a3 Y: rec=0x15 emu=0x7e
+  rec_idx=   419 emu_idx= 102957 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x10 emu=0x79 X: rec=0xe2d emu=0x15a3 Y: rec=0x16 emu=0x7f
+  rec_idx=   420 emu_idx= 102972 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x11 emu=0x7a X: rec=0xe2d emu=0x15a3 Y: rec=0x16 emu=0x7f
+  rec_idx=   421 emu_idx= 102977 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x11 emu=0x7a X: rec=0xe2c emu=0x15a2 Y: rec=0x16 emu=0x7f
+  rec_idx=   422 emu_idx= 102981 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x11 emu=0x7a X: rec=0xe2c emu=0x15a2 Y: rec=0x17 emu=0x80
+  rec_idx=   423 emu_idx= 102983 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x11 emu=0x7a X: rec=0xe2c emu=0x15a2 Y: rec=0x17 emu=0x80
+  rec_idx=   424 emu_idx= 102996 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x12 emu=0x7b X: rec=0xe2c emu=0x15a2 Y: rec=0x17 emu=0x80
+  rec_idx=   425 emu_idx= 103001 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x12 emu=0x7b X: rec=0xe2b emu=0x15a1 Y: rec=0x17 emu=0x80
+  rec_idx=   426 emu_idx= 103005 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x12 emu=0x7b X: rec=0xe2b emu=0x15a1 Y: rec=0x18 emu=0x81
+  rec_idx=   427 emu_idx= 103007 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x12 emu=0x7b X: rec=0xe2b emu=0x15a1 Y: rec=0x18 emu=0x81
+  rec_idx=   428 emu_idx= 103018 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x13 emu=0x7c X: rec=0xe2b emu=0x15a1 Y: rec=0x18 emu=0x81
+  rec_idx=   429 emu_idx= 103023 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x13 emu=0x7c X: rec=0xe2a emu=0x15a0 Y: rec=0x18 emu=0x81
+  rec_idx=   430 emu_idx= 103027 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x13 emu=0x7c X: rec=0xe2a emu=0x15a0 Y: rec=0x19 emu=0x82
+  rec_idx=   431 emu_idx= 103042 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x14 emu=0x7d X: rec=0xe2a emu=0x15a0 Y: rec=0x19 emu=0x82
+  rec_idx=   432 emu_idx= 103047 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x14 emu=0x7d X: rec=0xe29 emu=0x159f Y: rec=0x19 emu=0x82
+  rec_idx=   433 emu_idx= 103051 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x14 emu=0x7d X: rec=0xe29 emu=0x159f Y: rec=0x1a emu=0x83
+  rec_idx=   434 emu_idx= 103053 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x14 emu=0x7d X: rec=0xe29 emu=0x159f Y: rec=0x1a emu=0x83
+  rec_idx=   435 emu_idx= 103066 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x15 emu=0x7e X: rec=0xe29 emu=0x159f Y: rec=0x1a emu=0x83
+  rec_idx=   436 emu_idx= 103071 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x15 emu=0x7e X: rec=0xe28 emu=0x159e Y: rec=0x1a emu=0x83
+  rec_idx=   437 emu_idx= 103075 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x15 emu=0x7e X: rec=0xe28 emu=0x159e Y: rec=0x1b emu=0x84
+  rec_idx=   438 emu_idx= 103077 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x15 emu=0x7e X: rec=0xe28 emu=0x159e Y: rec=0x1b emu=0x84
+  rec_idx=   439 emu_idx= 103088 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x16 emu=0x7f X: rec=0xe28 emu=0x159e Y: rec=0x1b emu=0x84
+  rec_idx=   440 emu_idx= 103093 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x16 emu=0x7f X: rec=0xe27 emu=0x159d Y: rec=0x1b emu=0x84
+  rec_idx=   441 emu_idx= 103097 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x16 emu=0x7f X: rec=0xe27 emu=0x159d Y: rec=0x1c emu=0x85
+  rec_idx=   442 emu_idx= 103112 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x17 emu=0x80 X: rec=0xe27 emu=0x159d Y: rec=0x1c emu=0x85
+  rec_idx=   443 emu_idx= 103117 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x17 emu=0x80 X: rec=0xe26 emu=0x159c Y: rec=0x1c emu=0x85
+  rec_idx=   444 emu_idx= 103121 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x17 emu=0x80 X: rec=0xe26 emu=0x159c Y: rec=0x1d emu=0x86
+  rec_idx=   445 emu_idx= 103123 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x17 emu=0x80 X: rec=0xe26 emu=0x159c Y: rec=0x1d emu=0x86
+  rec_idx=   446 emu_idx= 103136 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x18 emu=0x81 X: rec=0xe26 emu=0x159c Y: rec=0x1d emu=0x86
+  rec_idx=   447 emu_idx= 103141 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x18 emu=0x81 X: rec=0xe25 emu=0x159b Y: rec=0x1d emu=0x86
+  rec_idx=   448 emu_idx= 103145 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x18 emu=0x81 X: rec=0xe25 emu=0x159b Y: rec=0x1e emu=0x87
+  rec_idx=   449 emu_idx= 103147 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x18 emu=0x81 X: rec=0xe25 emu=0x159b Y: rec=0x1e emu=0x87
+  rec_idx=   450 emu_idx= 103160 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x19 emu=0x82 X: rec=0xe25 emu=0x159b Y: rec=0x1e emu=0x87
+  rec_idx=   451 emu_idx= 103165 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x19 emu=0x82 X: rec=0xe24 emu=0x159a Y: rec=0x1e emu=0x87
+  rec_idx=   452 emu_idx= 103169 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x19 emu=0x82 X: rec=0xe24 emu=0x159a Y: rec=0x1f emu=0x88
+  rec_idx=   453 emu_idx= 103182 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x1a emu=0x83 X: rec=0xe24 emu=0x159a Y: rec=0x1f emu=0x88
+  rec_idx=   454 emu_idx= 103187 pc=0x008095 frame_rec=0 frame_emu=224  A: rec=0x1a emu=0x83 X: rec=0xe23 emu=0x1599 Y: rec=0x1f emu=0x88
+  rec_idx=   455 emu_idx= 103191 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x1a emu=0x83 X: rec=0xe23 emu=0x1599 Y: rec=0x20 emu=0x89
+  rec_idx=   456 emu_idx= 103193 pc=0x00809a frame_rec=0 frame_emu=224  A: rec=0x1a emu=0x83 X: rec=0xe23 emu=0x1599 Y: rec=0x20 emu=0x89
+  rec_idx=   457 emu_idx= 103206 pc=0x0080a0 frame_rec=0 frame_emu=224  A: rec=0x1b emu=0x84 X: rec=0xe23 emu=0x1599 Y: rec=0x20 emu=0x89

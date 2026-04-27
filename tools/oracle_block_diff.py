@@ -169,12 +169,25 @@ def _find_anchor_index(entries, anchor_pc: int):
 def _diff_streams(rec_blocks, emu_insns,
                   rec_anchor: int, emu_anchor: int,
                   max_divergences: int):
-    """Walk rec_blocks from rec_anchor. For each, advance emu_insns
-    pointer (starting at emu_anchor) to the next insn at the same PC.
+    """Walk rec_blocks from rec_anchor. For each, find the next
+    occurrence of the same PC in emu_insns (>= current cursor). The
+    naive while-loop search is O(N*M) when sparse-vs-dense mismatches
+    cascade not-found rollbacks; a PC->sorted-indices index converts
+    the inner search to O(log N) bisect.
+
     Compare (A, X, Y) at the matched PC."""
+    import bisect
     divergences = []
-    j = emu_anchor
     n_emu = len(emu_insns)
+
+    # Pre-parse PC ints (hex strings are expensive to int() repeatedly)
+    # and build PC -> sorted insn indices for >= cursor lookup.
+    emu_pcs = [int(e['pc'], 0) for e in emu_insns]
+    pc_index: dict[int, list[int]] = {}
+    for i, pc in enumerate(emu_pcs):
+        pc_index.setdefault(pc, []).append(i)
+
+    j_min = emu_anchor
     compared = skipped_unknown = not_found = 0
 
     def _rec_reg(v):
@@ -187,15 +200,20 @@ def _diff_streams(rec_blocks, emu_insns,
     for ri in range(rec_anchor, len(rec_blocks)):
         rblk = rec_blocks[ri]
         rec_pc = int(rblk['pc'], 0)
-        start_j = j
-        while j < n_emu and int(emu_insns[j]['pc'], 0) != rec_pc:
-            j += 1
-        if j >= n_emu:
+        idx_list = pc_index.get(rec_pc)
+        if not idx_list:
             not_found += 1
-            j = start_j
             continue
+        # First insn index >= j_min for this PC.
+        k = bisect.bisect_left(idx_list, j_min)
+        if k >= len(idx_list):
+            not_found += 1
+            continue
+        j = idx_list[k]
         emu = emu_insns[j]
-        j += 1
+        # Advance the cursor past this match so the next rec_block
+        # search begins after it. Linear-time across the whole walk.
+        j_min = j + 1
 
         rec_a = _rec_reg(rblk.get('a'))
         rec_x = _rec_reg(rblk.get('x'))
