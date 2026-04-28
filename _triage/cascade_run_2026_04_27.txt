@@ -1,0 +1,198 @@
+rec_anchor (first frame GM=0x07): 200
+emu_anchor (first frame GM=0x07): 182
+rec ring: oldest=0, newest=523
+emu ring: oldest=1, newest=524
+
+scanning k = 0..300 ...
+
+  k=0 anchor baseline: divergent_bytes=400 in 7 runs (elapsed=0.0s)
+    [base] $7E:0000-$7E:0003  len=4 ndiff=4
+    [base] $7E:03e8-$7E:03ef  len=8 ndiff=4
+    [base] $7E:041e-$7E:041e  len=1 ndiff=1
+    [base] $7E:049a-$7E:049b  len=2 ndiff=2
+    [base] $7E:0d77-$7E:0d7b  len=5 ndiff=3
+    [base] $7E:2142-$7E:2143  len=2 ndiff=2
+    [base] $7F:8002-$7F:8181  len=384 ndiff=384
+  k=1: +42 new divergent bytes in 16 runs (total ever-divergent=442, rec_frame=201, elapsed=0.1s)
+      [NEW] $7E:000f-$7E:0014  len=6 ndiff=3  rec=0x61 emu=0x01
+      [NEW] $7E:0051-$7E:0052  len=2 ndiff=2  rec=0xff emu=0x00
+      [NEW] $7E:007a-$7E:0080  len=7 ndiff=3  rec=0x80 emu=0x00
+      [NEW] $7E:0311-$7E:0315  len=5 ndiff=2  rec=0x90 emu=0x8f
+      [NEW] $7E:03e9-$7E:03ee  len=6 ndiff=3  rec=0x90 emu=0x91
+      [NEW] $7E:0d76-$7E:0d9a  len=37 ndiff=18  rec=0x00 emu=0x80
+      [NEW] $7E:0f30-$7E:0f30  len=1 ndiff=1  rec=0x26 emu=0x25
+      [NEW] $7E:13da-$7E:13dc  len=3 ndiff=2  rec=0x00 emu=0x10
+  k=6: +2 new divergent bytes in 1 runs (total ever-divergent=457, rec_frame=206, elapsed=0.3s)
+      [NEW] $7E:0091-$7E:0098  len=8 ndiff=2  rec=0x00 emu=0x01
+  k=11: +6 new divergent bytes in 4 runs (total ever-divergent=466, rec_frame=211, elapsed=0.5s)
+      [NEW] $7E:0015-$7E:0016  len=2 ndiff=2  rec=0x41 emu=0xc1
+      [NEW] $7E:0072-$7E:0072  len=1 ndiff=1  rec=0x00 emu=0x0b
+      [NEW] $7E:007d-$7E:007d  len=1 ndiff=1  rec=0x06 emu=0xae
+      [NEW] $7E:1df4-$7E:1dfa  len=7 ndiff=2  rec=0x02 emu=0x04
+  k=12: +9 new divergent bytes in 5 runs (total ever-divergent=475, rec_frame=212, elapsed=0.5s)
+      [NEW] $7E:0077-$7E:0077  len=1 ndiff=1  rec=0x04 emu=0x00
+      [NEW] $7E:008f-$7E:0096  len=8 ndiff=3  rec=0x00 emu=0x0b
+      [NEW] $7E:0d85-$7E:0d86  len=2 ndiff=2  rec=0x00 emu=0xc0
+      [NEW] $7E:0d8f-$7E:0d90  len=2 ndiff=2  rec=0x00 emu=0xc0
+      [NEW] $7E:13ef-$7E:13ef  len=1 ndiff=1  rec=0x01 emu=0x00
+  k=17: +1 new divergent bytes in 1 runs (total ever-divergent=478, rec_frame=217, elapsed=0.7s)
+      [NEW] $7E:008a-$7E:008a  len=1 ndiff=1  rec=0x02 emu=0x00
+  k=31: +7 new divergent bytes in 1 runs (total ever-divergent=485, rec_frame=231, elapsed=1.2s)
+      [NEW] $7E:0004-$7E:000e  len=11 ndiff=7  rec=0x80 emu=0x9d
+  k=49: +69 new divergent bytes in 6 runs (total ever-divergent=554, rec_frame=249, elapsed=1.9s)
+      [NEW] $7E:004d-$7E:0056  len=10 ndiff=8  rec=0x00 emu=0xff
+      [NEW] $7E:006b-$7E:006f  len=5 ndiff=4  rec=0x50 emu=0xb0
+      [NEW] $7E:1224-$7E:1233  len=16 ndiff=16  rec=0x30 emu=0xe0
+      [NEW] $7E:1be5-$7E:1be5  len=1 ndiff=1  rec=0x10 emu=0x0e
+      [NEW] $7E:1c3e-$7E:1c51  len=20 ndiff=20  rec=0xf8 emu=0xc3
+      [NEW] $7E:1cbe-$7E:1cd1  len=20 ndiff=20  rec=0xf8 emu=0xa7
+  k=52: +61 new divergent bytes in 26 runs (total ever-divergent=615, rec_frame=252, elapsed=2.0s)
+      [NEW] $7E:00a6-$7E:00a6  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:00be-$7E:00bf  len=2 ndiff=2  rec=0x00 emu=0xc0
+      [NEW] $7E:00cb-$7E:00cb  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:00e0-$7E:00e0  len=1 ndiff=1  rec=0x00 emu=0x60
+      [NEW] $7E:00ec-$7E:00ec  len=1 ndiff=1  rec=0x00 emu=0x89
+      [NEW] $7E:02d8-$7E:02df  len=8 ndiff=8  rec=0x00 emu=0x8d
+      [NEW] $7E:02f0-$7E:02ff  len=16 ndiff=16  rec=0x00 emu=0x8e
+      [NEW] $7E:03d0-$7E:03d3  len=4 ndiff=4  rec=0x00 emu=0x89
+  k=53: +9 new divergent bytes in 5 runs (total ever-divergent=624, rec_frame=253, elapsed=2.0s)
+      [NEW] $7E:001a-$7E:0027  len=14 ndiff=4  rec=0x00 emu=0x03
+      [NEW] $7E:142a-$7E:142a  len=1 ndiff=1  rec=0x82 emu=0x80
+      [NEW] $7E:1462-$7E:1466  len=5 ndiff=2  rec=0x00 emu=0x03
+      [NEW] $7E:1500-$7E:1500  len=1 ndiff=1  rec=0x00 emu=0x20
+      [NEW] $7E:17bd-$7E:17bd  len=1 ndiff=1  rec=0x00 emu=0x03
+  k=56: +10 new divergent bytes in 3 runs (total ever-divergent=636, rec_frame=256, elapsed=2.1s)
+      [NEW] $7E:0045-$7E:0047  len=3 ndiff=2  rec=0xf8 emu=0xf9
+      [NEW] $7E:0228-$7E:022b  len=4 ndiff=4  rec=0x00 emu=0x72
+      [NEW] $7E:17c2-$7E:17ce  len=13 ndiff=4  rec=0x00 emu=0x03
+  k=61: +10 new divergent bytes in 4 runs (total ever-divergent=655, rec_frame=261, elapsed=2.3s)
+      [NEW] $7E:0076-$7E:0076  len=1 ndiff=1  rec=0x01 emu=0x00
+      [NEW] $7E:030b-$7E:0323  len=25 ndiff=7  rec=0x60 emu=0x20
+      [NEW] $7E:13dd-$7E:13dd  len=1 ndiff=1  rec=0x00 emu=0x0d
+      [NEW] $7E:13ff-$7E:13ff  len=1 ndiff=1  rec=0x02 emu=0x00
+  k=66: +8 new divergent bytes in 2 runs (total ever-divergent=671, rec_frame=266, elapsed=2.5s)
+      [NEW] $7E:0220-$7E:0223  len=4 ndiff=4  rec=0x00 emu=0x2a
+      [NEW] $7E:17c0-$7E:17cc  len=13 ndiff=4  rec=0x00 emu=0x03
+  k=69: +15 new divergent bytes in 5 runs (total ever-divergent=686, rec_frame=269, elapsed=2.6s)
+      [NEW] $7E:02b8-$7E:02bf  len=8 ndiff=8  rec=0x8d emu=0x00
+      [NEW] $7E:1549-$7E:1549  len=1 ndiff=1  rec=0x02 emu=0x00
+      [NEW] $7E:16e2-$7E:16ee  len=13 ndiff=3  rec=0x06 emu=0x00
+      [NEW] $7E:16fa-$7E:1700  len=7 ndiff=2  rec=0x01 emu=0x00
+      [NEW] $7E:1df9-$7E:1df9  len=1 ndiff=1  rec=0x13 emu=0x00
+  k=70: +22 new divergent bytes in 18 runs (total ever-divergent=708, rec_frame=270, elapsed=2.7s)
+      [NEW] $7E:009e-$7E:009e  len=1 ndiff=1  rec=0x01 emu=0x00
+      [NEW] $7E:00b6-$7E:00b6  len=1 ndiff=1  rec=0xc0 emu=0x00
+      [NEW] $7E:00d8-$7E:00d8  len=1 ndiff=1  rec=0x60 emu=0x00
+      [NEW] $7E:00e4-$7E:00e4  len=1 ndiff=1  rec=0x89 emu=0x00
+      [NEW] $7E:0330-$7E:0333  len=4 ndiff=4  rec=0x89 emu=0x00
+      [NEW] $7E:0413-$7E:0413  len=1 ndiff=1  rec=0x02 emu=0x00
+      [NEW] $7E:046c-$7E:046c  len=1 ndiff=1  rec=0x02 emu=0x00
+      [NEW] $7E:14c8-$7E:14c8  len=1 ndiff=1  rec=0x08 emu=0x00
+  k=77: +2 new divergent bytes in 2 runs (total ever-divergent=711, rec_frame=277, elapsed=2.9s)
+      [NEW] $7E:160a-$7E:160a  len=1 ndiff=1  rec=0x00 emu=0x05
+      [NEW] $7E:1646-$7E:1646  len=1 ndiff=1  rec=0x00 emu=0xff
+  k=83: +7 new divergent bytes in 6 runs (total ever-divergent=718, rec_frame=283, elapsed=3.2s)
+      [NEW] $7E:00e1-$7E:00e1  len=1 ndiff=1  rec=0x60 emu=0x5f
+      [NEW] $7E:13e4-$7E:13e4  len=1 ndiff=1  rec=0x00 emu=0x04
+      [NEW] $7E:1470-$7E:1470  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:148f-$7E:148f  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:1498-$7E:14a0  len=9 ndiff=2  rec=0x00 emu=0x07
+      [NEW] $7E:1591-$7E:1591  len=1 ndiff=1  rec=0x04 emu=0x00
+  k=103: +1 new divergent bytes in 1 runs (total ever-divergent=726, rec_frame=303, elapsed=3.9s)
+      [NEW] $7E:163e-$7E:163e  len=1 ndiff=1  rec=0xff emu=0x00
+  k=114: +1 new divergent bytes in 1 runs (total ever-divergent=728, rec_frame=314, elapsed=4.3s)
+      [NEW] $7E:15a8-$7E:15a8  len=1 ndiff=1  rec=0x00 emu=0x01
+  k=133: +1 new divergent bytes in 1 runs (total ever-divergent=729, rec_frame=333, elapsed=5.0s)
+      [NEW] $7E:0046-$7E:0046  len=1 ndiff=1  rec=0xff emu=0x00
+  k=140: +1 new divergent bytes in 1 runs (total ever-divergent=733, rec_frame=340, elapsed=5.3s)
+      [NEW] $7E:0095-$7E:0095  len=1 ndiff=1  rec=0x00 emu=0x01
+  k=151: +16 new divergent bytes in 2 runs (total ever-divergent=751, rec_frame=351, elapsed=5.7s)
+      [NEW] $7E:1c32-$7E:1c39  len=8 ndiff=8  rec=0xf8 emu=0x08
+      [NEW] $7E:1cb2-$7E:1cb9  len=8 ndiff=8  rec=0xf8 emu=0x09
+  k=156: +1 new divergent bytes in 1 runs (total ever-divergent=752, rec_frame=356, elapsed=5.9s)
+      [NEW] $7E:15c4-$7E:15c4  len=1 ndiff=1  rec=0x01 emu=0x00
+  k=170: +8 new divergent bytes in 2 runs (total ever-divergent=762, rec_frame=370, elapsed=6.4s)
+      [NEW] $7E:1c3a-$7E:1c3d  len=4 ndiff=4  rec=0xf8 emu=0xc0
+      [NEW] $7E:1cba-$7E:1cbd  len=4 ndiff=4  rec=0xf8 emu=0xfe
+  k=175: +2 new divergent bytes in 1 runs (total ever-divergent=764, rec_frame=375, elapsed=6.6s)
+      [NEW] $7E:149a-$7E:149f  len=6 ndiff=2  rec=0x00 emu=0x0c
+  k=180: +3 new divergent bytes in 3 runs (total ever-divergent=774, rec_frame=380, elapsed=6.8s)
+      [NEW] $7E:14f4-$7E:14f4  len=1 ndiff=1  rec=0x00 emu=0x30
+      [NEW] $7E:1524-$7E:1524  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:15b4-$7E:15b4  len=1 ndiff=1  rec=0x00 emu=0x08
+  k=189: +50 new divergent bytes in 18 runs (total ever-divergent=824, rec_frame=389, elapsed=7.1s)
+      [NEW] $7E:0009-$7E:0009  len=1 ndiff=1  rec=0x01 emu=0x00
+      [NEW] $7E:0065-$7E:0067  len=3 ndiff=3  rec=0x02 emu=0xa8
+      [NEW] $7E:009c-$7E:009c  len=1 ndiff=1  rec=0x00 emu=0x09
+      [NEW] $7E:021c-$7E:021f  len=4 ndiff=4  rec=0x00 emu=0xa3
+      [NEW] $7E:0401-$7E:0401  len=1 ndiff=1  rec=0x00 emu=0x80
+      [NEW] $7E:0427-$7E:0427  len=1 ndiff=1  rec=0x00 emu=0x02
+      [NEW] $7E:14e8-$7E:14e8  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:1682-$7E:1682  len=1 ndiff=1  rec=0x00 emu=0x9a
+  k=195: +1 new divergent bytes in 1 runs (total ever-divergent=825, rec_frame=395, elapsed=7.3s)
+      [NEW] $7E:19ff-$7E:19ff  len=1 ndiff=1  rec=0x00 emu=0x04
+  k=208: +1 new divergent bytes in 1 runs (total ever-divergent=826, rec_frame=408, elapsed=7.8s)
+      [NEW] $7E:15a9-$7E:15a9  len=1 ndiff=1  rec=0x00 emu=0x01
+  k=217: +1 new divergent bytes in 1 runs (total ever-divergent=828, rec_frame=417, elapsed=8.1s)
+      [NEW] $7E:15cd-$7E:15cd  len=1 ndiff=1  rec=0x00 emu=0x01
+  k=228: +1 new divergent bytes in 1 runs (total ever-divergent=832, rec_frame=428, elapsed=8.5s)
+      [NEW] $7E:03f7-$7E:03f7  len=1 ndiff=1  rec=0x40 emu=0x00
+  k=234: +55 new divergent bytes in 13 runs (total ever-divergent=887, rec_frame=434, elapsed=8.7s)
+      [NEW] $7E:0270-$7E:027f  len=16 ndiff=16  rec=0x00 emu=0x52
+      [NEW] $7E:1616-$7E:1616  len=1 ndiff=1  rec=0x00 emu=0xff
+      [NEW] $7E:166a-$7E:166a  len=1 ndiff=1  rec=0x00 emu=0x09
+      [NEW] $7E:17f8-$7E:17fb  len=4 ndiff=4  rec=0x00 emu=0x03
+      [NEW] $7E:1804-$7E:1807  len=4 ndiff=4  rec=0x00 emu=0x4e
+      [NEW] $7E:1810-$7E:1813  len=4 ndiff=4  rec=0x00 emu=0xcf
+      [NEW] $7E:181c-$7E:181f  len=4 ndiff=4  rec=0x00 emu=0x01
+      [NEW] $7E:1828-$7E:182b  len=4 ndiff=4  rec=0x00 emu=0xea
+  k=237: +14 new divergent bytes in 4 runs (total ever-divergent=905, rec_frame=437, elapsed=8.9s)
+      [NEW] $7E:03d4-$7E:03d7  len=4 ndiff=4  rec=0x00 emu=0x53
+      [NEW] $7E:0495-$7E:0495  len=1 ndiff=1  rec=0x00 emu=0x02
+      [NEW] $7E:0d8b-$7E:0d98  len=14 ndiff=8  rec=0x00 emu=0xc0
+      [NEW] $7E:185e-$7E:185e  len=1 ndiff=1  rec=0x00 emu=0x0b
+  k=243: +19 new divergent bytes in 4 runs (total ever-divergent=924, rec_frame=443, elapsed=9.1s)
+      [NEW] $7E:0099-$7E:0099  len=1 ndiff=1  rec=0x00 emu=0x01
+      [NEW] $7E:837d-$7E:838d  len=17 ndiff=16  rec=0x20 emu=0x00
+      [NEW] $7E:c800-$7E:c800  len=1 ndiff=1  rec=0x52 emu=0x25
+      [NEW] $7F:c800-$7F:c800  len=1 ndiff=1  rec=0x01 emu=0x00
+  k=269: +1 new divergent bytes in 1 runs (total ever-divergent=925, rec_frame=469, elapsed=10.0s)
+      [NEW] $7E:13e5-$7E:13e5  len=1 ndiff=1  rec=0x03 emu=0x00
+  k=283: +1 new divergent bytes in 1 runs (total ever-divergent=926, rec_frame=483, elapsed=10.6s)
+      [NEW] $7E:18ad-$7E:18ad  len=1 ndiff=1  rec=0x00 emu=0x02
+
+scan complete: 301 frames in 11.2s
+  k=0 anchor baseline: 400 divergent bytes
+  total ever-divergent across scan: 926 bytes
+
+First-divergence histogram (top 30 k by new-byte count):
+  k=  0 (rec_frame=200): 400 bytes first diverged here
+  k= 49 (rec_frame=249): 69 bytes first diverged here
+  k= 52 (rec_frame=252): 61 bytes first diverged here
+  k=234 (rec_frame=434): 55 bytes first diverged here
+  k=189 (rec_frame=389): 50 bytes first diverged here
+  k=  1 (rec_frame=201): 42 bytes first diverged here
+  k= 70 (rec_frame=270): 22 bytes first diverged here
+  k=243 (rec_frame=443): 19 bytes first diverged here
+  k=151 (rec_frame=351): 16 bytes first diverged here
+  k= 69 (rec_frame=269): 15 bytes first diverged here
+  k=237 (rec_frame=437): 14 bytes first diverged here
+  k= 56 (rec_frame=256): 10 bytes first diverged here
+  k= 61 (rec_frame=261): 10 bytes first diverged here
+  k= 12 (rec_frame=212): 9 bytes first diverged here
+  k= 53 (rec_frame=253): 9 bytes first diverged here
+  k= 62 (rec_frame=262): 8 bytes first diverged here
+  k= 66 (rec_frame=266): 8 bytes first diverged here
+  k=170 (rec_frame=370): 8 bytes first diverged here
+  k=  4 (rec_frame=204): 7 bytes first diverged here
+  k= 31 (rec_frame=231): 7 bytes first diverged here
+  k= 83 (rec_frame=283): 7 bytes first diverged here
+  k= 85 (rec_frame=285): 7 bytes first diverged here
+  k= 11 (rec_frame=211): 6 bytes first diverged here
+  k= 59 (rec_frame=259): 6 bytes first diverged here
+  k=176 (rec_frame=376): 5 bytes first diverged here
+  k=  2 (rec_frame=202): 4 bytes first diverged here
+  k=136 (rec_frame=336): 3 bytes first diverged here
+  k=180 (rec_frame=380): 3 bytes first diverged here
+  k=235 (rec_frame=435): 3 bytes first diverged here
+  k=  6 (rec_frame=206): 2 bytes first diverged here

@@ -100,6 +100,50 @@ deterministic-sync harness to make this comparison meaningful.
    pre-allocation) might give us the diagonal-ledge close
    without the cascade.
 
+**Update later 2026-04-27 — Option A partial harness shipped:**
+
+Built Half 2 (per-frame full-128KB emu ring at 1500 frames, new
+`emu_dump_frame_wram` TCP cmd) and partial Half 1 (per-logical-
+frame keying, canonical WRAM zero-fill at snes9x init). Cascade-
+finder probe at `_triage/cascade_root.py` runs end-to-end. Run
+captured at `_triage/cascade_run_2026_04_27.txt`.
+
+**Cascade triage signal (from `_triage/cascade_run_2026_04_27.txt`):**
+
+At rec_frame=443 (k=243 from anchor — exactly the cascade frame
+ISSUES.md cites), 19 NEW divergent bytes appear:
+- `$7E:c800` rec=0x52 emu=0x25 (Layer 1 Map16 buffer first byte)
+- `$7F:c800` rec=0x01 emu=0x00 (Layer 2 Map16 buffer first byte)
+- `$7E:837d-$7E:838d` rec=0x20 emu=0x00 (16-byte run, level tile data)
+- `$7E:0099` rec=0x00 emu=0x01
+
+Earlier histogram peaks (k=49 / 52 / 189 / 234) are upstream
+contributor candidates worth investigating:
+- k=49 (rec_frame=249, ~0.8s into level): 69 new divergent bytes,
+  including 20-byte runs at `$7E:1c3e-$7E:1c51` and
+  `$7E:1cbe-$7E:1cd1` (sprite OAM tables).
+- k=52: 61 new divergent bytes including 16-byte run at
+  `$7E:02f0-$7E:02ff`, 8-byte at `$7E:02d8-$7E:02df`.
+
+**Limitation — data is noisy:** both sides reach GameMode=$07 at
+different rec_frame values (rec=200, emu=182). The 18-frame
+offset means inputs from the demo track aren't truly aligned.
+For pure-codegen signal, full Half 1 needs save-state injection
+at the anchor on both sides:
+- snes9x exposes `retro_serialize / retro_unserialize /
+  retro_serialize_size` (`snesrecomp/runner/snes9x-core/libretro/
+  libretro.cpp:2099`).
+- Recomp has `RtlSaveSnapshot/Load`.
+- Bridge work needed: `snes9x_bridge_serialize/unserialize`,
+  TCP cmds (`emu_serialize_save/restore`), and a probe entry
+  point that captures both at GM=$07, restores both before
+  cascade scan, and advances them in lockstep.
+
+Until that lands, the current `_triage/cascade_root.py` is a
+useful triage starting point — the divergences it surfaces at
+specific frames are real WRAM differences, just contaminated
+by timing-offset noise.
+
 **Tools shipped:**
 - `_triage/option_a_anchored_diff.py` (Option A primitive)
 - `_triage/option_a_anchor_pre_egg.py` (per-event anchor)
