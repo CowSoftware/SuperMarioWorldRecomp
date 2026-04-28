@@ -20,6 +20,97 @@ trace → framework fix.
 
 ---
 
+## Session 2026-04-27 — phi-prealloc fix landed, two regressions deferred
+
+**Branch:** `virtual-hw-timing` (merged to main same session).
+
+**Landed:** snesrecomp `1eeb1d8` + parent `1cce70a` ship the multi-
+pred phi-prealloc fix in `_emit_backedge_phi` / label-emission. When
+a forward goto targets a multi-pred label that hasn't been emitted
+yet, the recompiler now pre-allocates fresh phi vars and the label
+adopts them. Closes diagonal-ledge-walk-and-sink (Issue B remaining
+contributors), bushes left-half repeating, BG slope tiles, trailing
+BG tiles, Mario-jumping sprites.
+
+**Regressions opened — known broken, not blocking:**
+
+1. **Berries render as `?`-blocks.** SMW level berries on bushes
+   should display as small round red sprites; with the fix they
+   render as orange `?`-blocks. Map16-tile-rendering pipeline.
+2. **Yoshi `?`-block doesn't activate.** Mario hits the yoshi-`?`-
+   block with shell from below; ROM-correct behavior is to replace
+   the tile with a used-block + spawn yoshi-egg sprite; with the
+   fix the tile stays `?` and no egg spawns.
+
+**Audit findings (this session, see `_triage/option_a_anchored_diff.py`):**
+
+- **At GameMode=0x07 (level-loaded) anchor:** recomp WRAM matches
+  snes9x byte-for-byte on sprite types ($9E-$BF), Map16 long
+  pointers ($65-$71), and tile buffer ($1933-$1956). The fix
+  produces ROM-correct level data at level-load. Validated via
+  Option A's first primitive (logical-frame-anchored WRAM diff).
+- **Block-hit chain codegen is byte-identical pre/post fix:**
+  `HandleNormalSpriteLevelColl_01944D`, `CheckIfBlockWasHit_Entry3`,
+  `SpawnBounceSprite_02887D` — none touched by phi-prealloc.
+- **Cascade flows through WRAM state evolution.** At frame 443,
+  `CheckIfBlockWasHit_Entry3` is called with the same code in both
+  builds, but pre-fix writes `$0005=0x0C` (block hit detected),
+  post-fix writes `$0005=0x00` (no hit). Inputs differ because
+  upstream functions wrote different WRAM. The cascade root is
+  distributed across many functions whose phi-prealloc'd output
+  produces slightly different per-frame state evolution.
+- **Per-function hand-coding doesn't fix it.** Verbatim-reverting
+  `RunPlayerBlockCode_EB77` (the largest reshuffled function in
+  bank 00, +94 lines) closed neither bug. The cascade is in
+  upstream WRAM-writers, not the block-hit chain itself.
+- **Bank-level toggling can't separate the bugs.** Disabling phi-
+  prealloc per-bank either reintroduces diagonal-ledge or doesn't
+  fix berries+yoshi:
+  - bank 0D only → berries+yoshi OK, Mario falls under
+  - bank 0D + 02/03/04/01 → same as above
+  - bank 0D + 00 → yoshi BREAKS
+  - bank 0D + 05 → berries BREAK
+  Banks 00 and 05 both need to be enabled for Mario-doesn't-fall
+  AND both break yoshi/berries respectively. There's no clean cut.
+
+**Framework regression test status:** `test_attract_demo_invariants_hold`
+(`yoshi_spawns_in_demo` at frame 900) FAILS post-fix. The test catches
+attract-demo-trajectory yoshi-spawn, which is sensitive to Mario's
+exact frame-by-frame position. Interactive gameplay yoshi works fine
+in some scenarios. Treat the test failure as demo-trajectory noise,
+not a real yoshi-functionality regression — until we have Option A's
+deterministic-sync harness to make this comparison meaningful.
+
+**To attack in a fresh session:**
+
+1. Build Option A's full deterministic-sync harness
+   (`docs/OPTION_A_DETERMINISTIC_SYNC.md`) — needed to compare
+   recomp vs snes9x WRAM at every frame, not just at one anchor.
+   Without it we can't isolate the upstream cascade root.
+2. Per-function bisect within bank 00 / bank 05 with a smarter
+   technique than verbatim-revert (e.g., apply phi-prealloc only
+   to specific function classes, or instrument per-function WRAM
+   writes to find the first divergent write).
+3. Consider whether phi-prealloc itself has an architectural
+   issue worth rethinking — the user's suspicion was that the
+   mechanism may be too invasive; user-visible state being so
+   distributed across the cascade supports this. A different
+   mechanism for the diagonal-ledge fix (e.g., explicit per-
+   function phi-merge cfg directives instead of automatic
+   pre-allocation) might give us the diagonal-ledge close
+   without the cascade.
+
+**Tools shipped:**
+- `_triage/option_a_anchored_diff.py` (Option A primitive)
+- `_triage/option_a_anchor_pre_egg.py` (per-event anchor)
+- `_triage/probe_05_and_18e2.py` (block-hit byte trace)
+- `_triage/list_changed_funcs.py` (lists functions changed by the fix)
+- ~10 other triage probes
+- `smw.local.ini` mechanism for local config overrides
+- `emu_step` concurrency mutex (`emu_oracle_cmds.c`)
+
+---
+
 ## Session 2026-04-25/26 — post-koopa-shell-pop attract-demo audit
 
 Branch: `post-koopa-discovery` (both repos). Landed:
