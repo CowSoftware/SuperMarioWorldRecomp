@@ -49,3 +49,7 @@ __pycache__/
 
 # Local-only config overrides (per-developer, applied after smw.ini)
 smw.local.ini
+
+
+# v2 pipeline regen output (Phase 6+) — generated locally per-developer
+src/gen_v2/
