@@ -4,9 +4,11 @@
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
 sha = 8bd9f10679054004900c80c2d7d5575be4eb06ae
-# Branch: release-fallback. This is mstan/snesrecomp's SSA Step 4 commit
-# (last config that produced a buildable smw.exe pre-cleanup) with the
-# launcher/keybinds/crc32 infra cherry-picked on top. SSA stays disabled
-# at runtime (ssa_mode default False), so the heuristic phi-prealloc path
-# drives codegen. main is unbuildable as of 2026-04-29 due to cfg/recomp
-# arity drift surfaced after the public-prep regen — see _triage/sig_drift_audit.py.
+# Branch: main. SSA Step 4 commit (latest phi-prealloc heuristic config
+# that produces a buildable smw.exe — SSA stays disabled at runtime,
+# ssa_mode default False) with the launcher / keybinds / crc32 infra
+# layered on top. The pre-release-fallback main HEAD is preserved at
+# tag archive/old-main-pre-release-fallback if it ever needs to be
+# reconstructed. _triage/sig_drift_audit.py still tracks the latent
+# cfg/recompiler arity drift; bumping the pin to a future cleaned-up
+# main is gated on closing those out.
