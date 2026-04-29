@@ -3,7 +3,7 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 8bd9f10679054004900c80c2d7d5575be4eb06ae
+sha = 4607b04cff51999585ba0993cb53846bb6a37392
 # Branch: main. SSA Step 4 commit (latest phi-prealloc heuristic config
 # that produces a buildable smw.exe — SSA stays disabled at runtime,
 # ssa_mode default False) with the launcher / keybinds / crc32 infra
