@@ -27,15 +27,26 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      - name: Clone snesrecomp at pinned SHA (replace symlink)
+      - name: Remove dev-only snesrecomp symlink
         shell: bash
-        run: |
-          # The repo's snesrecomp/ is a local symlink for the dev junction
-          # layout. On CI we replace it with a real clone at the pinned SHA.
-          rm -rf snesrecomp
-          git clone https://github.com/mstan/snesrecomp.git snesrecomp
-          git -C snesrecomp checkout "${{ steps.pin.outputs.sha }}"
-          git -C snesrecomp submodule update --init --recursive
+        # The repo's snesrecomp/ is a local symlink for the dev junction
+        # layout (./snesrecomp -> /f/Projects/snesrecomp). On CI we
+        # replace it with a real checkout below.
+        run: rm -rf snesrecomp
+
+      - name: Checkout snesrecomp at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: mstan/snesrecomp
+          ref: ${{ steps.pin.outputs.sha }}
+          # mstan/snesrecomp may be private. The default GITHUB_TOKEN
+          # only has access to the current repo, so we need a PAT with
+          # repo:read access to mstan/snesrecomp stored as a repo secret
+          # named SNESRECOMP_TOKEN. If snesrecomp is public, the default
+          # token works and SNESRECOMP_TOKEN can be left empty.
+          token: ${{ secrets.SNESRECOMP_TOKEN || github.token }}
+          submodules: recursive
+          path: snesrecomp
 
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
