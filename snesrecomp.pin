@@ -1,0 +1,12 @@
+# Pinned commit of github.com/mstan/snesrecomp used to build this repo.
+# Bumping this is a deliberate, reviewable change (snesrecomp is a separate
+# repo evolving on its own cadence). Update via:
+#   git -C ../snesrecomp rev-parse main > /tmp/sha && \
+#     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
+sha = 8bd9f10679054004900c80c2d7d5575be4eb06ae
+# Branch: release-fallback. This is mstan/snesrecomp's SSA Step 4 commit
+# (last config that produced a buildable smw.exe pre-cleanup) with the
+# launcher/keybinds/crc32 infra cherry-picked on top. SSA stays disabled
+# at runtime (ssa_mode default False), so the heuristic phi-prealloc path
+# drives codegen. main is unbuildable as of 2026-04-29 due to cfg/recomp
+# arity drift surfaced after the public-prep regen — see _triage/sig_drift_audit.py.

@@ -187,6 +187,9 @@
     <ClCompile Include="..\snesrecomp\runner\src\common_rtl.c" />
     <ClCompile Include="..\snesrecomp\runner\src\recomp_hw.c" />
     <ClCompile Include="..\snesrecomp\runner\src\framedump.c" />
+    <ClCompile Include="..\snesrecomp\runner\src\launcher.c" />
+    <ClCompile Include="..\snesrecomp\runner\src\crc32.c" />
+    <ClCompile Include="..\snesrecomp\runner\src\keybinds.c" />
     <ClCompile Include="config.c" />
     <ClCompile Include="glsl_shader.c" />
     <ClCompile Include="main.c" />

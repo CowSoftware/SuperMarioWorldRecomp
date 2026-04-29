@@ -15,8 +15,6 @@
 #include <unistd.h>
 #endif
 
-#include "assets/smw_assets.h"
-
 #include "snes/ppu.h"
 
 #include "types.h"
@@ -32,7 +30,8 @@
 #include "switch_impl.h"
 #endif
 
-#include "assets/smw_assets.h"
+#include "launcher.h"
+#include "keybinds.h"
 
 typedef struct GamepadInfo {
   uint32 modifiers;
@@ -45,7 +44,6 @@ typedef struct GamepadInfo {
 
 
 static void SDLCALL AudioCallback(void *userdata, Uint8 *stream, int len);
-static void LoadAssets();
 static void SwitchDirectory();
 static void RenderNumber(uint8 *dst, size_t pitch, int n, uint8 big);
 static void OpenOneGamepad(int i);
@@ -503,6 +501,9 @@ int main(int argc, char** argv) {
 #ifdef __SWITCH__
   SwitchImpl_Init();
 #endif
+  /* Capture program path before argv shift — used to place keybinds.ini
+   * next to the executable. */
+  const char *program_path = (argc >= 1) ? argv[0] : NULL;
   argc--, argv++;
   const char *config_file = NULL;
   if (argc >= 2 && strcmp(argv[0], "--config") == 0) {
@@ -538,6 +539,33 @@ int main(int argc, char** argv) {
     }
   }
 
+  /* Resolve the SNES ROM path: argv[0] -> rom.cfg cache -> file picker.
+   * On success, replace argv so the existing ReadWholeFile + oracle init
+   * paths below pick up the resolved path without further changes.
+   *
+   * CRC32 of Super Mario World (USA), unheadered 512KB. The launcher
+   * skips a 512-byte SMC copier header automatically before hashing,
+   * so headered and unheadered dumps both verify against this value. */
+  static char rom_path_buf[512];
+  {
+    static const uint32_t kSmwUsaCrc32 = 0xB19ED489u;
+    char *la_argv[2] = {
+      (char *)"smw",
+      (char *)((argc >= 1 && argv[0]) ? argv[0] : "")
+    };
+    int la_argc = (la_argv[1][0] != '\0') ? 2 : 1;
+    if (!snesrecomp_launcher_resolve_rom(la_argc, la_argv, rom_path_buf,
+                                         sizeof(rom_path_buf), kSmwUsaCrc32)) {
+      /* User cancelled the picker or repeatedly chose a non-matching ROM. */
+      return 1;
+    }
+  }
+  static char *resolved_argv[2];
+  resolved_argv[0] = rom_path_buf;
+  resolved_argv[1] = NULL;
+  argv = resolved_argv;
+  argc = 1;
+
   // Initialize debug server
   {
     extern int debug_server_init(int port);
@@ -550,8 +578,6 @@ int main(int argc, char** argv) {
       fprintf(stderr, "[main] Started paused — send 'step N' or 'continue' via TCP\n");
     }
   }
-
-  LoadAssets();
 
   g_gamepad[0].joystick_id = g_gamepad[1].joystick_id = -1;
   g_snes_width = 256;
@@ -588,6 +614,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  /* Load (or generate) keybinds.ini next to the executable. */
+  keybinds_init(program_path);
+
   bool custom_size = g_config.window_width != 0 && g_config.window_height != 0;
   int window_width = custom_size ? g_config.window_width : g_current_window_scale * g_snes_width;
   int window_height = custom_size ? g_config.window_height : g_current_window_scale * g_snes_height;
@@ -599,6 +628,10 @@ int main(int argc, char** argv) {
     g_renderer_funcs = kSdlRendererFuncs;
   }
 
+  /* Load the SNES ROM. argv[0] is the launcher-resolved path (always
+   * non-NULL after snesrecomp_launcher_resolve_rom returned success). */
+  uint8 *kRom = NULL;
+  uint32 kRom_SIZE = 0;
   if (argv[0]) {
     size_t size;
     kRom = ReadWholeFile(argv[0], &size);
@@ -781,6 +814,27 @@ error_reading:;
         RtlSaveLoad(kSaveLoad_Load, ls);
     }
     debug_server_wait_if_paused();
+
+    /* Drive the SNES controller bits in g_input_state from keybinds.ini.
+     * smw.ini's [KeyMap] still owns system commands (state save/load,
+     * fullscreen, pause, etc.); the 12 controller buttons per player
+     * come from keybinds.ini.
+     *
+     * Mapping below: keybinds bit layout (see keybinds.h) -> kKeys_Controls
+     * index (smw.ini [Controls] order: Up Down Left Right Select Start
+     * A B X Y L R). HandleCommand is idempotent for set/clear, so calling
+     * it every frame is safe. */
+    {
+      const uint8_t *keys = SDL_GetKeyboardState(NULL);
+      uint16_t kb_p1 = keybinds_read_player(keys, 1);
+      uint16_t kb_p2 = keybinds_read_player(keys, 2);
+      static const uint8 kKb2CtrlsIdx[12] = { 7, 6, 5, 4, 9, 8, 3, 11, 2, 10, 1, 0 };
+      for (int i = 0; i < 12; i++) {
+        HandleCommand(kKeys_Controls   + i, (kb_p1 >> kKb2CtrlsIdx[i]) & 1);
+        HandleCommand(kKeys_ControlsP2 + i, (kb_p2 >> kKb2CtrlsIdx[i]) & 1);
+      }
+    }
+
     uint32 inputs = g_input_state | g_gamepad[0].axis_buttons | g_gamepad[1].axis_buttons << 12;
     inputs |= TickScript();
     RtlRunFrame(inputs | GetActiveControllers());
@@ -1097,72 +1151,6 @@ static void HandleGamepadAxisInput(GamepadInfo *gi, int axis, Sint16 value) {
     if (value < 12000 || value >= 16000)  // hysteresis
       HandleGamepadInput(gi, axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? kGamepadBtn_L2 : kGamepadBtn_R2, value >= 12000);
   }
-}
-
-const uint8 *g_asset_ptrs[kNumberOfAssets];
-uint32 g_asset_sizes[kNumberOfAssets];
-
-static bool VerifyAssetsFile(const uint8 *data, size_t length) {
-  static const char kAssetsSig[] = { kAssets_Sig };
-  if (length < 16 + 32 + 32 + 8 + kNumberOfAssets * 4 ||
-    memcmp(data, kAssetsSig, 48) != 0 ||
-    *(uint32 *)(data + 80) != kNumberOfAssets)
-    return false;
-  return true;
-}
-
-static const char *kAssetFileCandidates[] = {
-  "smw_assets.dat",
-  "assets/smw_assets.dat"
-};
-
-static void LoadAssets() {
-  size_t length = 0;
-  uint8 *data = NULL;
-  for (int i = 0; i < 2 && data == NULL; i++)
-    data = ReadWholeFile(kAssetFileCandidates[i], &length);
-
-  if (!data) {
-    size_t bps_length, bps_src_length;
-    uint8 *bps, *bps_src;
-
-    bps = ReadWholeFile("smw_assets.bps", &bps_length);
-    if (!bps)
-      Die("Failed to read smw_assets.dat. Please see the README for information about how you get this file.");
-    
-    bps_src = ReadWholeFile("smw.sfc", &bps_src_length);
-    if (!bps_src)
-      Die("Missing file: smw.sfc");
-    if (bps_src_length != 524288)
-      Die("smw.sfc needs to be the unheadered ROM");
-
-    data = ApplyBps(bps_src, bps_src_length, bps, bps_length, &length);
-    if (!data)
-      Die("Unable to apply smw_assets.bps");
-  }
-
-  if (!VerifyAssetsFile(data, length))
-    Die("Mismatching assets file - Please re run 'python assets/restool.py'");
-    
-  uint32 offset = 88 + kNumberOfAssets * 4 + *(uint32 *)(data + 84);
-
-  for (size_t i = 0; i < kNumberOfAssets; i++) {
-    uint32 size = *(uint32 *)(data + 88 + i * 4);
-    offset = (offset + 3) & ~3;
-    if ((uint64)offset + size > length)
-      Die("Assets file corruption");
-    g_asset_sizes[i] = size;
-    g_asset_ptrs[i] = data + offset;
-    offset += size;
-  }
-}
-
-MemBlk FindInAssetArray(int asset, int idx) {
-  return FindIndexInMemblk((MemBlk) { g_asset_ptrs[asset], g_asset_sizes[asset] }, idx);
-}
-
-const uint8 *FindPtrInAsset(int asset, uint32 addr) {
-  return FindAddrInMemblk((MemBlk){g_asset_ptrs[asset], g_asset_sizes[asset]}, addr);
 }
 
 // Go some steps up and find smw.ini

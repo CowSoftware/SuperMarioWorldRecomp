@@ -1,0 +1,102 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read pinned snesrecomp SHA
+        id: pin
+        shell: bash
+        run: |
+          sha=$(grep -E '^[[:space:]]*sha[[:space:]]*=' snesrecomp.pin | sed -E 's/.*=[[:space:]]*//')
+          if [ -z "$sha" ] || [ "$sha" = "PLACEHOLDER_REPLACED_AFTER_SNESRECOMP_PUSH" ]; then
+            echo "snesrecomp.pin missing a real sha line"; exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Clone snesrecomp at pinned SHA (replace symlink)
+        shell: bash
+        run: |
+          # The repo's snesrecomp/ is a local symlink for the dev junction
+          # layout. On CI we replace it with a real clone at the pinned SHA.
+          rm -rf snesrecomp
+          git clone https://github.com/mstan/snesrecomp.git snesrecomp
+          git -C snesrecomp checkout "${{ steps.pin.outputs.sha }}"
+          git -C snesrecomp submodule update --init --recursive
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          nuget restore smw.sln
+
+      - name: Build (Release|x64)
+        shell: pwsh
+        run: |
+          msbuild smw.sln /p:Configuration=Release /p:Platform=x64 /m /nologo /v:m
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $stage = "release-stage"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "build\bin-x64-Release\smw.exe"  $stage\
+          Copy-Item "build\bin-x64-Release\SDL2.dll" $stage\
+          Copy-Item "smw.ini"                        $stage\
+          @"
+          Super Mario World — Static Recompilation (WIP)
+          ==============================================
+          1. Run smw.exe.
+          2. When prompted, select your legally-obtained Super Mario World
+             (USA) ROM (.sfc / .smc). The path is remembered in rom.cfg
+             next to the exe.
+          3. Edit keybinds.ini (auto-generated next to the exe on first run)
+             to remap controller keys, then restart.
+
+          Default controls:
+            D-Pad     = Arrow keys
+            A         = X        Y = A        L = C
+            B         = Z        X = S        R = V
+            Start     = Enter    Select = Right Shift
+
+          State save/load + system shortcuts are configured in smw.ini's
+          [KeyMap] section (Shift+F1..F10 = save state, F1..F10 = load,
+          P = pause, Ctrl+R = reset, Alt+Enter = fullscreen, Tab = turbo).
+
+          STATUS: HEAVY WIP. The attract demo renders with bugs (wrong
+          berry palette, missing/invisible enemies, ? blocks unresponsive,
+          slope physics issues). In-game gameplay is not yet end-to-end
+          verified and should be assumed broken.
+
+          ROM not included — provide your own dump.
+          See https://github.com/mstan/SuperMarioWorldRecomp for source.
+          "@ | Out-File -FilePath "$stage\README.txt" -Encoding utf8
+          Compress-Archive -Path "$stage\*" -DestinationPath "SuperMarioWorldRecomp-windows-x64.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperMarioWorldRecomp-windows-x64
+          path: release-stage/
+
+      - name: Create GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SuperMarioWorldRecomp-windows-x64.zip
+          generate_release_notes: true

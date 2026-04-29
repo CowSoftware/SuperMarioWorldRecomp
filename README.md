@@ -43,21 +43,89 @@ in code paths the attract demo doesn't exercise.
 manually played end-to-end. Anything beyond "the screen renders"
 should be assumed to be broken.
 
-## Building / running
+## Quick start (pre-built release)
 
-You must bring your own **legally-obtained** Super Mario World ROM
-(`smw.sfc`) and place it at the repo root. ROMs are explicitly
-excluded via `.gitignore`. So is the recompiler output (`src/gen/`,
-`recomp/funcs.h`) — those are generated locally from your ROM, not
-shipped here.
+1. Download the latest `SuperMarioWorldRecomp-windows-x64.zip` from
+   [Releases](../../releases) and extract it.
+2. Run `smw.exe`. On first launch a file picker asks for your
+   **legally-obtained** Super Mario World (USA) ROM (`.sfc` / `.smc`).
+   The path is remembered in `rom.cfg` next to the exe.
+3. Edit `keybinds.ini` (auto-generated next to the exe on first run)
+   to remap keys, then restart.
 
-Rough flow (subject to change):
+The ROM is **never** redistributed — supply your own dump.
 
-1. Drop `smw.sfc` at the repo root.
-2. Run the regen step: `bash tools/regen.sh`. This drives snesrecomp
-   over the ROM and writes `src/gen/*.c`, `recomp/funcs.h`, and the
-   per-bank registry.
-3. Build with MSBuild against `smw.sln`.
+## Controls (default `keybinds.ini`)
+
+| SNES button | Default key |
+|-------------|-------------|
+| D-Pad       | Arrow keys |
+| A           | X |
+| B           | Z |
+| X           | S |
+| Y           | A |
+| L           | C |
+| R           | V |
+| Start       | Enter |
+| Select      | Right Shift |
+
+Player 2 is unbound by default — fill in keys in `keybinds.ini` to
+enable a second keyboard player. SDL controllers (XInput / DInput
+gamepads) are auto-detected.
+
+System shortcuts (configured in `smw.ini`'s `[KeyMap]` section):
+
+| Action          | Default     |
+|-----------------|-------------|
+| Save state 1-10 | Shift+F1..F10 |
+| Load state 1-10 | F1..F10 |
+| Toggle pause    | P |
+| Reset           | Ctrl+R |
+| Toggle fullscreen | Alt+Enter |
+| Turbo (fast-forward) | Tab |
+| Toggle renderer | R |
+| Display perf    | F |
+
+## Building from source
+
+Prerequisites: Windows 10+, Visual Studio 2022 (with C++ desktop
+workload), Python 3.9+ on PATH.
+
+```bash
+git clone --recurse-submodules https://github.com/mstan/SuperMarioWorldRecomp
+cd SuperMarioWorldRecomp
+```
+
+The `snesrecomp/` directory is a [sibling repo](https://github.com/mstan/snesrecomp)
+accessed via a junction/symlink. If you don't already have it checked
+out next to this repo, clone it:
+
+```bash
+git clone https://github.com/mstan/snesrecomp ../snesrecomp
+```
+
+Then build:
+
+```bash
+# From a Developer Command Prompt for VS 2022, or with MSBuild on PATH:
+msbuild smw.sln /p:Configuration=Release /p:Platform=x64 /m
+```
+
+The recompiled C in `src/gen/` and the `recomp/funcs.h` declarations
+are committed and built directly — no ROM is required at build time.
+Run the exe and the runtime ROM-picker handles the rest.
+
+### Regenerating the recompiled C (contributors)
+
+If you change anything under `recomp/bank_*.cfg`, the snesrecomp
+framework, or otherwise need to re-run the recompiler:
+
+1. Drop a legally-obtained `smw.sfc` at the repo root (`.gitignore`
+   excludes it).
+2. Run `bash tools/regen.sh`. This drives `snesrecomp/recompiler/`
+   over the ROM and rewrites `src/gen/*.c`, `recomp/funcs.h`, and
+   the per-bank registry.
+3. Rebuild as above.
 
 (Build and run instructions are not yet stable — see scripts under
 `tools/` and notes in `docs/` for the current shape, but expect them

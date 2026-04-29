@@ -2,7 +2,6 @@
 #include "funcs.h"
 #include "smw_rtl.h"
 #include "variables.h"
-#include "assets/smw_assets.h"
 
 
 // Cross-bank data — referenced by banks 01, 02; always compiled.

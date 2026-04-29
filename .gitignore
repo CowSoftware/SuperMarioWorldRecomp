@@ -18,10 +18,6 @@ build/
 smw_assets.dat
 assets/
 
-# Recompiled output (generated locally from ROM via tools/regen.sh — derivative work)
-src/gen/
-recomp/funcs.h
-
 # Save files
 saves/
 *.sav
