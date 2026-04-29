@@ -45,15 +45,23 @@ should be assumed to be broken.
 
 ## Building / running
 
-You need to bring your own **legally-obtained** Super Mario World ROM
+You must bring your own **legally-obtained** Super Mario World ROM
 (`smw.sfc`) and place it at the repo root. ROMs are explicitly
-excluded from this repo via `.gitignore`. The build pipeline reads
-the ROM, recompiles it via snesrecomp, and links the output into a
-native executable.
+excluded via `.gitignore`. So is the recompiler output (`src/gen/`,
+`recomp/funcs.h`) — those are generated locally from your ROM, not
+shipped here.
 
-(Build and run instructions are not yet stable — see internal docs
-under `docs/` and the build scripts under `tools/` for the current
-shape, but expect them to drift.)
+Rough flow (subject to change):
+
+1. Drop `smw.sfc` at the repo root.
+2. Run the regen step: `bash tools/regen.sh`. This drives snesrecomp
+   over the ROM and writes `src/gen/*.c`, `recomp/funcs.h`, and the
+   per-bank registry.
+3. Build with MSBuild against `smw.sln`.
+
+(Build and run instructions are not yet stable — see scripts under
+`tools/` and notes in `docs/` for the current shape, but expect them
+to drift.)
 
 ## Repo layout
 

@@ -16,7 +16,11 @@ build/
 
 # Extracted ROM data (generated from ROM at build time — copyrighted)
 smw_assets.dat
-assets/smw_assets.dat
+assets/
+
+# Recompiled output (generated locally from ROM via tools/regen.sh — derivative work)
+src/gen/
+recomp/funcs.h
 
 # Save files
 saves/
