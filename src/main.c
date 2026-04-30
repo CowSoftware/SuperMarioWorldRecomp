@@ -506,6 +506,16 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
   SetUnhandledExceptionFilter(seh_handler);
 #endif
+  /* ARM the backwards watcher BEFORE any recompiled code runs. Without
+   * this, the trace ring records but no tripwires fire. With this:
+   * - DB-watch on every byte SMW shouldn't legitimately use as DB
+   * - PB-watch on every non-zero PB
+   * - S-watch when stack leaves $0100-$1FFF
+   * - Func-watch on the bank03.cfg empty stub
+   * - Off-rails dumps (rate-limited) from RomPtr/cart_readLorom soft fails
+   * Each tripwire dumps the trace BACKWARDS so we see the chain that
+   * birthed the bad state, not just where it died. */
+  cpu_trace_arm_default_watches();
   setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
 #ifdef __SWITCH__
