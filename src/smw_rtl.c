@@ -46,6 +46,7 @@ void SmwRunOneFrameOfGame(void) {
   // 42-entry dispatch table at PC 0x009329. Use a host-side bool instead so the
   // gate is independent of WRAM contents.
   static bool g_did_reset = false;
+  static bool g_first_frame_done = false;
   if (!g_did_reset) {
     cpu_state_init(&g_cpu, g_ram);
     I_RESET(&g_cpu);
@@ -68,11 +69,25 @@ void SmwRunOneFrameOfGame(void) {
   // diverges from oracle, and demo timing skews because the
   // VariousPromptTimer / TitleInputIndex tick keys off observable
   // input state.
+  //
+  // Frame 0 is special: real hardware fires the first NMI AFTER
+  // I_RESET completes AND the main loop has had time to set up flags
+  // (notably SEP #$10 → x=1). If we run I_NMI before Internal on the
+  // very first frame, I_NMI's PHP captures I_RESET-end's P (x=0); its
+  // RTI then restores x=0 to the main loop. Subsequent ProcessGameMode
+  // → UploadGraphicsFiles_Layer3 → TAY at $00:A9A5 then runs as 16-bit,
+  // copying A's polluted high byte into Y, indexing past the GFX bank
+  // table and writing $7E (instead of $0B) to $7E:008C. Skip I_NMI on
+  // frame 0 so the order matches hardware: I_RESET → main loop →
+  // (vblank) → I_NMI → main loop → ...
   // Assert NMI-pending so the recompiled NMI handler's read of $4210
   // (RDNMI) returns bit 7 = 1, matching real hardware. snes_readReg
   // clears the latch on read.
-  g_snes->inNmi = true;
-  I_NMI(&g_cpu);
+  if (g_first_frame_done) {
+    g_snes->inNmi = true;
+    I_NMI(&g_cpu);
+  }
   SmwRunOneFrameOfGame_Internal();
+  g_first_frame_done = true;
 }
 
