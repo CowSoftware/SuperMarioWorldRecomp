@@ -5,6 +5,7 @@
 #include "cpu_state.h"
 #include "funcs.h"
 #include "debug_server.h"
+#include "cpu_trace.h"
 
 void SmwDrawPpuFrame(void) {
   SimpleHdma hdma_chans[3];
@@ -49,9 +50,12 @@ void SmwRunOneFrameOfGame(void) {
   static bool g_first_frame_done = false;
   if (!g_did_reset) {
     cpu_state_init(&g_cpu, g_ram);
+    cpu_trace_px_breadcrumb(&g_cpu, 0x1000, "after_cpu_state_init");
     I_RESET(&g_cpu);
+    cpu_trace_px_breadcrumb(&g_cpu, 0x1001, "after_I_RESET");
     g_did_reset = true;
   }
+  cpu_trace_px_breadcrumb(&g_cpu, 0x2000, "before_NMI_or_Internal");
   // NMI handler runs BEFORE the main-loop game code each frame.
   //
   // On real hardware NMI fires at vblank start (between frames).
@@ -86,8 +90,16 @@ void SmwRunOneFrameOfGame(void) {
   if (g_first_frame_done) {
     g_snes->inNmi = true;
     I_NMI(&g_cpu);
+    cpu_trace_px_breadcrumb(&g_cpu, 0x2001, "after_I_NMI");
   }
+  cpu_trace_px_breadcrumb(&g_cpu, 0x2002, "before_Internal");
+  /* Rearm the P.X tripwire here so the first x=1→0 transition INSIDE
+   * Internal() (the main game loop) is captured fresh. The earlier
+   * boot-time REP #$38 in I_RESET is expected and intentional; we only
+   * want to know where x flips during ProcessGameMode dispatch. */
+  cpu_trace_arm_px_tripwire();
   SmwRunOneFrameOfGame_Internal();
+  cpu_trace_px_breadcrumb(&g_cpu, 0x2003, "after_Internal");
   g_first_frame_done = true;
 }
 
