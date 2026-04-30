@@ -157,7 +157,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)src;$(SolutionDir)snesrecomp\runner\src;$(SolutionDir)snesrecomp\runner\src\snes;$(SolutionDir)recomp</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>SMW_DISABLE_LM=1;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SMW_DISABLE_LM=1;SNESRECOMP_TRACE=1;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <DisableSpecificWarnings>4996</DisableSpecificWarnings>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <ForcedIncludeFiles>$(ProjectDir)banks.h</ForcedIncludeFiles>
@@ -191,6 +191,7 @@
     <ClCompile Include="..\snesrecomp\runner\src\crc32.c" />
     <ClCompile Include="..\snesrecomp\runner\src\keybinds.c" />
     <ClCompile Include="..\snesrecomp\runner\src\cpu_state.c" />
+    <ClCompile Include="..\snesrecomp\runner\src\cpu_trace.c" />
     <ClCompile Include="config.c" />
     <ClCompile Include="glsl_shader.c" />
     <ClCompile Include="main.c" />

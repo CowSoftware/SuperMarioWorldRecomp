@@ -444,6 +444,8 @@ void MkDir(const char *s) {
 }
 
 #include <signal.h>
+#include "cpu_state.h"
+#include "cpu_trace.h"
 extern uint8_t g_ram[0x20000];
 static void dump_sprite_state(void) {
   // Dump SMW sprite-state arrays so dispatch-OOB crashes name the offending slot.
@@ -454,6 +456,10 @@ static void dump_sprite_state(void) {
   for (int k = 0; k < 12; k++) fprintf(stderr, " %02x", g_ram[0x14c8 + k]);
   fprintf(stderr, "\n  $0100 (GameMode)    : %02x\n", g_ram[0x100]);
   fprintf(stderr, "  $7F:8000 (init sig) : %02x %02x\n", g_ram[0x18000], g_ram[0x18001]);
+  fprintf(stderr, "  v2 CpuState: A=%04X X=%04X Y=%04X S=%04X D=%04X DB=%02X PB=%02X "
+                  "P=%02X m=%u x=%u e=%u\n",
+                  g_cpu.A, g_cpu.X, g_cpu.Y, g_cpu.S, g_cpu.D, g_cpu.DB, g_cpu.PB,
+                  g_cpu.P, g_cpu.m_flag, g_cpu.x_flag, g_cpu.emulation);
 }
 static void crash_handler(int sig) {
   extern const char *g_last_recomp_func;
@@ -462,6 +468,8 @@ static void crash_handler(int sig) {
           sig, g_last_recomp_func ? g_last_recomp_func : "(unknown)");
   dump_sprite_state();
   RecompStackDump();
+  cpu_trace_dump_dbpb("CRASH — DB/PB mutations");
+  cpu_trace_dump_recent("CRASH — main trace ring", 256);
   fflush(stderr);
   _exit(128 + sig);
 }
@@ -484,6 +492,8 @@ static LONG WINAPI seh_handler(EXCEPTION_POINTERS* info) {
   }
   dump_sprite_state();
   RecompStackDump();
+  cpu_trace_dump_dbpb("SEH CRASH — DB/PB mutations");
+  cpu_trace_dump_recent("SEH CRASH — main trace ring", 256);
   fflush(stderr);
   return EXCEPTION_EXECUTE_HANDLER;
 }
