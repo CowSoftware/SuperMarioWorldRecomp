@@ -79,6 +79,9 @@
     <ClCompile Include="main.c">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="post_mortem.c">
+      <Filter>Common</Filter>
+    </ClCompile>
     <ClCompile Include="platform\win32\volume_control.c">
       <Filter>Common</Filter>
     </ClCompile>

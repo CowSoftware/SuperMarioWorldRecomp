@@ -446,6 +446,7 @@ void MkDir(const char *s) {
 #include <signal.h>
 #include "cpu_state.h"
 #include "cpu_trace.h"
+#include "post_mortem.h"
 extern uint8_t g_ram[0x20000];
 static void dump_sprite_state(void) {
   // Dump SMW sprite-state arrays so dispatch-OOB crashes name the offending slot.
@@ -471,6 +472,7 @@ static void crash_handler(int sig) {
   cpu_trace_dump_dbpb("CRASH — DB/PB mutations");
   cpu_trace_dump_recent("CRASH — main trace ring", 256);
   fflush(stderr);
+  smw_post_mortem_dump("signal", NULL);
   _exit(128 + sig);
 }
 
@@ -495,9 +497,14 @@ static LONG WINAPI seh_handler(EXCEPTION_POINTERS* info) {
   cpu_trace_dump_dbpb("SEH CRASH — DB/PB mutations");
   cpu_trace_dump_recent("SEH CRASH — main trace ring", 256);
   fflush(stderr);
+  smw_post_mortem_dump("seh", info);
   return EXCEPTION_EXECUTE_HANDLER;
 }
 #endif
+
+static void post_mortem_atexit(void) {
+  smw_post_mortem_dump("atexit", NULL);
+}
 
 #undef main
 int main(int argc, char** argv) {
@@ -505,7 +512,12 @@ int main(int argc, char** argv) {
   signal(SIGABRT, crash_handler);
 #ifdef _WIN32
   SetUnhandledExceptionFilter(seh_handler);
+  /* Suppress the Windows error dialog so SEH unwinds straight to our
+   * filter and we can write the post-mortem report without the user
+   * having to dismiss a popup first. */
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 #endif
+  atexit(post_mortem_atexit);
   /* ARM the backwards watcher BEFORE any recompiled code runs. Without
    * this, the trace ring records but no tripwires fire. With this:
    * - DB-watch on every byte SMW shouldn't legitimately use as DB

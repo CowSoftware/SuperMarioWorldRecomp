@@ -195,6 +195,7 @@
     <ClCompile Include="config.c" />
     <ClCompile Include="glsl_shader.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="post_mortem.c" />
 
     <ClCompile Include="opengl.c" />
     <ClCompile Include="platform\win32\volume_control.c" />
