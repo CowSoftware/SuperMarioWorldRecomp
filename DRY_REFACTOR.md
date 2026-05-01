@@ -2,14 +2,14 @@
 
 ## Status (2026-04-30, end of session)
 
-**Steps 1, 2, 3, 5 SHIPPED.** Step 4 (multi-insn fuzz) IN PROGRESS.
+**ALL 5 STEPS SHIPPED.**
 
 | step | what | landed | commit |
 |---|---|---|---|
 | 1 | `recompiler/v2/widths.py` chokepoint module | ✅ | snesrecomp `fa09fef` |
 | 2 | refactor 11 `_emit_*` sites to call helpers | ✅ | snesrecomp `fa09fef` |
 | 3 | `tools/lint_codegen_widths.py` + wired into run_tests | ✅ | snesrecomp `c817650` |
-| 4 | multi-insn fuzz (`fuzz/snippets_multi_insn.py`) | ⏳ | (next) |
+| 4 | multi-insn fuzz (18 snippets across 7 categories) | ✅ | snesrecomp `63546ac` |
 | 5 | `tests/test_emitter_mask_shape.py` (18 tests) | ✅ | snesrecomp `c817650` |
 
 **Acceptance criteria results:**
@@ -19,6 +19,7 @@
 | ad-hoc width-derivation sites in codegen.py | 0 | **0** ✅ |
 | raw width literals in codegen.py | 0 | **12** (all non-width-bound: P-bit positions, addr arithmetic, MVN/MVP $FFFF sentinel) |
 | unit tests | green | **221/221** ✅ |
+| fuzz pass-rate (single + multi-insn) | unchanged at 1801/1801 | **1819/1819** ✅ (1801 single + 18 new multi-insn) |
 | Release smoke (GM advance) | unchanged | **GM 00→02→04→...→14 (overworld)**, further than before |
 | visible regression | none | **none observed** (user-confirmed visual) |
 
