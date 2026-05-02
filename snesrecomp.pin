@@ -3,26 +3,27 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = e163931051efd03b18ceb733b4018446c44228ee
+sha = 7baf4a011b8aab3b6a73af348b0442f91c68493b
 # Branch: fix/v1-trim-regression (CHECKPOINT — DB corruption remains,
-# do not merge to main). Bumped 2026-05-02 from 193c266 to bring in:
-#   010c30f  B2: encode bank/addr16/width/old_value/new_value on
-#            WRAM_WRITE events (B2 explicit fields)
-#   e163931  cross-fn CFG import — inline-cross-fn-blocks model +
-#            HLE-replacement via cfg `exclude_range`. Decoder's
-#            end: now applies only to fall-through edges; jump
-#            targets past end: get imported into the source
-#            function's CFG so PHB/PLB stay paired within one C
-#            scope. Auto-promote machinery retired for goto
-#            targets (was the bug that stranded stack invariants).
-#            cfg `exclude_range` plumbed through emit_bank →
-#            emit_function so cross-fn jumps into HLE-replaced
-#            data regions (e.g. $00:806B-$8078 asm main loop) emit
-#            `return to host` instead of re-entering asm spinlock.
-# Effect: build advances past frame-0 watchdog, GameMode advances
-# 00 -> 01 -> ... -> 07 -> 14, demo briefly plays. Remaining
-# failure: cpu->DB = $C0 at every ProcessGameMode entry corrupts
-# the dispatcher into reading ROM not WRAM. 131 generated functions
-# have unbalanced cpu->S push/pop counts — the next layer.
-# See parent project_inline_cross_fn_blocks_partial_2026_05_02.md
-# for next-session plan (dynamic stack/DB boundary auditor).
+# do not merge to main). Bumped 2026-05-02 from e163931 to bring in:
+#   7baf4a0  observability: dynamic per-fn boundary auditor +
+#            DB→<value> tripwire. New always-on heap-alloc'd ring
+#            of BoundaryEvent (default 1M slots; tunable via
+#            SNESRECOMP_BOUNDARY_RING_ENTRIES) hooked into
+#            RecompStackPush/Pop so every recompiled function gets
+#            entry/exit coverage with full state. DB tripwire
+#            auto-arms target=$C0 at boot, captures last 256
+#            boundary events + last 64 dbpb events on first DB
+#            transition to $C0, FREEZES the boundary ring on fire
+#            so seq=0..trip window stays queryable. New TCP cmds
+#            boundary_get / db_trip_arm / db_trip_get / db_trip_disarm.
+# Result on the still-open attract-demo bug: the auditor pinpointed
+# the FIRST runtime stack imbalance at frame 380 in
+# GetDrawInfo_Bank01_Recomp_M1X1 (+2 stack delta), a "PLA*N RTS =
+# return-to-grandparent" non-local-return idiom that v2 codegen
+# doesn't yet model — bucket E from the user-supplied playbook.
+# Mario runs through the demo and freezes while carrying a koopa
+# shell just before the ?-block-with-Yoshi appears (visual
+# symptom matches the dynamic auditor's call-chain pinpoint).
+# The fix (RecompReturn ABI) is intentionally NOT in this commit;
+# see project_first_db_corruption_root_2026_05_02 in memory.
