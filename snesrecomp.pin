@@ -3,7 +3,7 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 7baf4a011b8aab3b6a73af348b0442f91c68493b
+sha = deb6879f2fccc4ba0a27ad0b3ffc7d1d5be4cedc
 # Branch: fix/v1-trim-regression (CHECKPOINT — DB corruption remains,
 # do not merge to main). Bumped 2026-05-02 from e163931 to bring in:
 #   7baf4a0  observability: dynamic per-fn boundary auditor +

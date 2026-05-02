@@ -20,14 +20,14 @@
 // implementation. Behaviour is M/X-independent (no register-width-
 // sensitive code in ResetSpritesFunc), so a single body suffices.
 void SmwRunDecompressFromWRAM(CpuState *cpu) { (void)cpu; ResetSpritesFunc(0); }
-void SmwRunDecompressFromWRAM_M0X0(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); }
-void SmwRunDecompressFromWRAM_M0X1(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); }
-void SmwRunDecompressFromWRAM_M1X0(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); }
-void SmwRunDecompressFromWRAM_M1X1(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); }
+RecompReturn SmwRunDecompressFromWRAM_M0X0(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_M0X1(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_M1X0(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_M1X1(CpuState *cpu) { SmwRunDecompressFromWRAM(cpu); return RECOMP_RETURN_NORMAL; }
 
 // SmwRunDecompressFromWRAM_Entry2 ($7F:812E) — clears sprites 100-127.
 void SmwRunDecompressFromWRAM_Entry2(CpuState *cpu) { (void)cpu; ResetSpritesFunc(100); }
-void SmwRunDecompressFromWRAM_Entry2_M0X0(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); }
-void SmwRunDecompressFromWRAM_Entry2_M0X1(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); }
-void SmwRunDecompressFromWRAM_Entry2_M1X0(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); }
-void SmwRunDecompressFromWRAM_Entry2_M1X1(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); }
+RecompReturn SmwRunDecompressFromWRAM_Entry2_M0X0(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_Entry2_M0X1(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_Entry2_M1X0(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); return RECOMP_RETURN_NORMAL; }
+RecompReturn SmwRunDecompressFromWRAM_Entry2_M1X1(CpuState *cpu) { SmwRunDecompressFromWRAM_Entry2(cpu); return RECOMP_RETURN_NORMAL; }
