@@ -3,12 +3,27 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 4607b04cff51999585ba0993cb53846bb6a37392
-# Branch: main. SSA Step 4 commit (latest phi-prealloc heuristic config
-# that produces a buildable smw.exe — SSA stays disabled at runtime,
-# ssa_mode default False) with the launcher / keybinds / crc32 infra
-# layered on top. The pre-release-fallback main HEAD is preserved at
-# tag archive/old-main-pre-release-fallback if it ever needs to be
-# reconstructed. _triage/sig_drift_audit.py still tracks the latent
-# cfg/recompiler arity drift; bumping the pin to a future cleaned-up
-# main is gated on closing those out.
+sha = 7baf4a011b8aab3b6a73af348b0442f91c68493b
+# Branch: fix/v1-trim-regression (CHECKPOINT — DB corruption remains,
+# do not merge to main). Bumped 2026-05-02 from e163931 to bring in:
+#   7baf4a0  observability: dynamic per-fn boundary auditor +
+#            DB→<value> tripwire. New always-on heap-alloc'd ring
+#            of BoundaryEvent (default 1M slots; tunable via
+#            SNESRECOMP_BOUNDARY_RING_ENTRIES) hooked into
+#            RecompStackPush/Pop so every recompiled function gets
+#            entry/exit coverage with full state. DB tripwire
+#            auto-arms target=$C0 at boot, captures last 256
+#            boundary events + last 64 dbpb events on first DB
+#            transition to $C0, FREEZES the boundary ring on fire
+#            so seq=0..trip window stays queryable. New TCP cmds
+#            boundary_get / db_trip_arm / db_trip_get / db_trip_disarm.
+# Result on the still-open attract-demo bug: the auditor pinpointed
+# the FIRST runtime stack imbalance at frame 380 in
+# GetDrawInfo_Bank01_Recomp_M1X1 (+2 stack delta), a "PLA*N RTS =
+# return-to-grandparent" non-local-return idiom that v2 codegen
+# doesn't yet model — bucket E from the user-supplied playbook.
+# Mario runs through the demo and freezes while carrying a koopa
+# shell just before the ?-block-with-Yoshi appears (visual
+# symptom matches the dynamic auditor's call-chain pinpoint).
+# The fix (RecompReturn ABI) is intentionally NOT in this commit;
+# see project_first_db_corruption_root_2026_05_02 in memory.
