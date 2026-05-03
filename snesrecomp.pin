@@ -3,26 +3,30 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 217e5fefe3d42bf91691f2d351490c84eca6209a
-# Branch: main. Bumped 2026-05-02 from bf2c147 to land the Yoshi-block
-# dispatcher fix (PHK+PER+JML / PHK+PEA+JML inline-dispatch trampoline):
-#   217e5fe  merge fix/yoshi-block-freeze: dispatcher fix. Two-commit
-#            chain (bb67ce6 stack-drift tripwire infrastructure +
-#            e6cc093 IR-driven codegen change). When a JML carries
-#            dispatch_entries (set by classify_dispatch_helper for
-#            ExecutePtr / ExecutePtrLong), emit_function.py now skips
-#            the immediately-preceding PHK/PEA/PER trampoline-setup
-#            pushes and routes the JML's Goto through _emit_dispatch.
-#            Covers every classifier-detected dispatcher automatically
-#            — no per-site cfg directives needed.
+sha = db9f39923f1ebcbdb02235cd675e70d06941ceb5
+# Branch: main. Bumped 2026-05-03 from 217e5fe to land in-progress
+# investigation tooling for fix/mario-dies-on-slope:
+#   db9f399  v2 stack-op trace + func-watch snapshot + NLR-detector
+#            3-shape coverage. CPU_TR_STACK_OP captures every
+#            gen-emitted PH*/PL*/PE* push/pull (old_S, new_S, signed
+#            delta, mnemonic id) into the main cpu_trace ring; off
+#            by default, gated by stack_op_enable / disable / status
+#            TCP cmds. cpu_trace_set_func_watch now snapshots
+#            registers + 64-deep g_recomp_stack on first hit
+#            (g_func_watch_hit) so probes can answer "what called
+#            this function?" without ring reconstruction. NLR
+#            detector recognizes 3 terminator shapes and adds
+#            RunPlayerBlockCode_00F005_ReturnsTwice_M1X1 to SKIP_N
+#            list. Plus stack_drift_arm/get and func_watch_arm/get
+#            TCP commands and a partial pause fix.
 # Validation:
-#   - v2 unit tests 105/108 (baseline + 3 new dispatcher tests; 3
-#     pre-existing fails unchanged).
-#   - stack-drift tripwire at GenerateTile_Dispatch_M0X0: GONE.
-#   - DB→$C0 tripwire still silent.
-#   - nlr_diag still 1:1 (54 writes / 54 consumes).
-#   - User visually confirmed Mario clears koopa-shell scene, hits
-#     the ?-block, gets on Yoshi, runs deep into the attract demo.
-# A new -1 stack-drift trip surfaced at frame 822 in
-# RunPlayerBlockCode_M1X1 — separate bug class, NOT a dispatcher
-# pattern. Investigate next session.
+#   - Tests 106/109 (3 pre-existing fails unchanged).
+#   - Both Release|x64 and Oracle|x64 builds clean.
+# Investigation status:
+#   - Slope-pose ($13ED) ruled out as first-death cause via oracle
+#     emu_history_find scan (Case A: both builds keep $13ED=00).
+#   - First-death divergence is upstream player state ($0094/$0096
+#     position, $0071 PlayerState, $187A/$18E2 Yoshi-mount). Next
+#     concrete probe: per-GM14-tick player trace.
+#   - Detour planned: Codex emitter-gap audit before resuming
+#     player-trace work.
