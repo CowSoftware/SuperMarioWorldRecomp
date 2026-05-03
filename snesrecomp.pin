@@ -3,8 +3,29 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 14da73ea591629d9c2eeff1128ae64d26650715f
+sha = 162511ad6fd86c038557a227a22529e5810cc95e
 # Branch: chore/cf-debt-report (audit detour, NOT main).
+# Bumped 2026-05-03 from 14da73e to land Steps 1-B + 2-A of the
+# CALL_INDIRECT priority fix:
+#   407a511  runner phantom-PC trap (Step 1-B): always-armed runtime
+#            trap registered at boot for the 11 cf_debt_report-flagged
+#            JSR (abs,X) PCs. Validates classification empirically;
+#            captures full snapshot + 64-deep block-PC history if any
+#            site fires. Frame 2351 attract-demo run: 0 hits, no
+#            regressions visible.
+#   162511a  v2 decoder cfg-required-dispatch-or-kill (Step 2-A):
+#            JSR (abs,X) without cfg authorisation has its fall-through
+#            edge severed at decode. SuppressedIndirectCall record per
+#            site for the build report. Authorised path (cfg
+#            indirect_call_table directive) reads static table entries
+#            and stamps insn.dispatch_entries — same machinery JSL
+#            dispatch helpers use. Codegen comment marks suppressed
+#            sites loudly so cf_debt_report classifies them separately.
+#            cf_debt_report: CALL_INDIRECT 22 -> 0 (priority resolved);
+#            21 markers reclassified to CALL_INDIRECT_SUPPRESSED
+#            (informational). Tests +3 (109/112; 3 pre-existing fails).
+#
+# Earlier on this branch:
 # Bumped 2026-05-03 from 4cf40c5 to land --with-asm + --with-bounds +
 # SMC-phantom detection in cf_debt_report. Decoded asm context for
 # every unique CALL_INDIRECT site via v2's decode_function (proper
