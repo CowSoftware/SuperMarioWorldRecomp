@@ -3,8 +3,21 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = c3ea87e2a5a79f59b1adf2aa9af6b5d313791514
+sha = f4c764d22b32c3f9ec1f943f1c4d267808b6d845
 # Branch: chore/cf-debt-report (audit detour, NOT main).
+# Bumped 2026-05-03 from c3ea87e to land cfg `tail_call:<addr>`
+# directive in the v2 emit pipeline. Encodes the real ROM idiom of a
+# routine with its own callable entry that deliberately falls through
+# into a separately-declared sibling fn (two entry points sharing a
+# body). Boundary edge emits `return SiblingFn_M{m}X{x}(cpu);`
+# instead of unresolvable-goto trap. Sibling-name resolution happens
+# in emit_bank with a hard error on missing sibling for typo-safety.
+# Applied to bank00.cfg BufferFileSelectText (-> Entry3 at $9D3C) and
+# bank03.cfg Spr0BF_MegaMole_038820 (-> Spr0BF_MegaMole_Draw at $883F).
+# cf_debt_report: UNRESOLVABLE_GOTO 5 -> 3.
+# Tests 119/122; Release clean; attract smoke no regressions.
+#
+# Earlier on this branch:
 # Bumped 2026-05-03 from 45170a6 to land the narrow constant-Z fold
 # in the v2 decoder. The fold rewrites BEQ/BNE -> single live Goto
 # when the same-block predecessor is LDA/LDX/LDY #imm with statically
