@@ -3,7 +3,7 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 162511ad6fd86c038557a227a22529e5810cc95e
+sha = 2c572711e026e7004397471e70860353d794787e
 # Branch: chore/cf-debt-report (audit detour, NOT main).
 # Bumped 2026-05-03 from 14da73e to land Steps 1-B + 2-A of the
 # CALL_INDIRECT priority fix:
