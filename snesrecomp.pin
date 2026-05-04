@@ -3,8 +3,36 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 27c4aeeed036a6117df2f98e9224de14440d18c3
+sha = 3356e36153455864ed359a593d78f37ab3ffd09e
 # Branch: chore/cf-debt-report (audit detour, NOT main).
+# Bumped 2026-05-03 from 27c4aee to wire cfg `data_region` through
+# the v2 pipeline (decoder + variant discovery + auto-promote +
+# emit_bank). cfg_loader already parsed it (since v1) but nothing
+# downstream consumed it. Now the auto-detected dispatch-table reader
+# halts at any entry whose target lands inside a data_region; the
+# variant-discovery loop drops Call targets inside data; the
+# auto-promote pass refuses to synthesize a function entry inside
+# data; and decoder records DispatchTargetSuppressed bookkeeping for
+# the build report.
+# bank05.cfg: removed `func auto_059C60 9C60` workaround; added
+# `data_region 05 9C60 9C8E` to encode the real ROM fact
+# (InitializeScrollSprites_05BD0E's case-15 table entry overruns
+# into a sibling data table; the bytes there decode as `BRL $1F78`
+# which is in unmapped LoROM-shadow range).
+# cf_debt_report: UNRESOLVABLE_GOTO 2 -> 1. Build report confirms
+# exactly one suppression: bank $05 target $9C60 site $05BD13.
+# Tests 129/132 v2 (5 new data_region tests; 3 pre-existing fails
+# unchanged); Release clean; attract smoke at frame 8656 had 0
+# unresolved-goto fires, 0 unresolved-stub fires; user confirmed
+# no visual regressions.
+# Remaining UNRESOLVABLE_GOTO site: $00:EE2D
+# RunPlayerBlockCode_00EE1D_M0X1 (M=0 propagation chain through
+# PlayerState00_00F8F2_M0X1 -> HandlePlayerLevelCollision_M0X1 -> ...).
+# Loud-trapped, 0 fires confirmed; visible debt for a later
+# variant-discovery / REP-reachability investigation. NOT in scope
+# for the data_region directive.
+#
+# Earlier on this branch:
 # Bumped 2026-05-03 from f4c764d to land dispatch-table validity gate
 # in the v2 decoder. `_dispatch_target_is_padding(rom, bank, pc16)`
 # rejects entries whose target's first 16 bytes are uniform $FF or
