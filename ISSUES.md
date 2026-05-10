@@ -20,6 +20,53 @@ trace → framework fix.
 
 ---
 
+## Session 2026-05-08 — attract demo remaining issues (branch: fix/attract-demo-remaining-bugs)
+
+**Context:** Koopa-on-slope physics fixed by Codex on `fix/koopa-slide-physics` (merged to main
+2026-05-09). Two visible bugs remain in the attract demo as of the screenshot captured post-fix.
+Neither has been investigated yet. Work is tracked on `fix/attract-demo-remaining-bugs`.
+
+### Issue F — Spiny falls through the map near attract demo end
+
+Near the end of the attract demo sequence, a Spiny enemy spawns and immediately falls through the
+ground/map geometry rather than landing and walking. Expected behavior: Spiny spawns, lands on the
+slope/ground tile, and slides.
+
+**Suspected class:** Sprite-ground collision pipeline for Spiny (sprite type $06, handler
+`Spr006_Spiny` / `Spr0BD` family). Likely the same collision integration that was partially
+investigated for the Koopa-on-slope bug — the `HandleNormalSpriteLevelCollision` gate or the
+gravity/Y-integration chain may not be applying correctly when Spiny first spawns mid-air.
+
+**Candidate entry points:**
+- `$01:9032` — `SubUpdateSprPos` / `HandleNormalSpriteGravity`; gate at `$15DC,X` (SpriteDisableObjInt)
+- `$01:ABD8` — `UpdateNormalSpritePosition_Y` (Y-integration step)
+- `$01:9449` — `HandleNormalSpriteLevelCollision`
+
+**Approach:** func_watch on `Spr006_Spiny_M1X1` to confirm the slot and frame; then
+block_watch_arm at the gravity-gate and collision-gate PCs for the slot carrying Spiny.
+Compare vs oracle. If the gate is skipping in recomp but not oracle, trace the upstream WRAM
+writer for the gating byte.
+
+### Issue G — Piranha plant visually malformed
+
+In the attract demo, a Piranha Plant (pipe-spawned) renders with incorrect graphics — malformed
+tile layout, wrong palette, or wrong OAM arrangement. The plant appears but looks broken (see
+screenshot 2026-05-08).
+
+**Suspected class:** OAM tile-selection or palette assignment for Piranha Plant sprite
+(`Spr004_PiranhaPlant` / related handler). Possible sub-causes:
+1. Draw-info function (`GetDrawInfo` / `GetSpriteDrawInfo`) reading wrong tile index due to
+   register-width mismatch (m/x mode at draw time).
+2. WRAM state for the sprite's animation frame or tile pointer diverged upstream.
+3. Palette slot assignment wrong (DB or bank register stale at draw time — similar to the
+   DB=$C0 class that was fixed for `GetDrawInfo_Bank01`).
+
+**Approach:** func_watch on the Piranha Plant draw function; VRAM write differ
+(`cmd_vram_write_diff`) scoped to the sprite OAM address range for that slot; compare tile
+index and palette nibble between recomp and oracle at the first frame the plant renders.
+
+---
+
 ## Session 2026-04-27 — phi-prealloc fix landed, two regressions deferred
 
 **Branch:** `virtual-hw-timing` (merged to main same session).
