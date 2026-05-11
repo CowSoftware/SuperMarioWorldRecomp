@@ -26,26 +26,80 @@ trace → framework fix.
 2026-05-09). Two visible bugs remain in the attract demo as of the screenshot captured post-fix.
 Neither has been investigated yet. Work is tracked on `fix/attract-demo-remaining-bugs`.
 
-### Issue F — Spiny falls through the map near attract demo end
+### Issue F — Pokey falls through the map (attract demo) — FIXED 2026-05-11
 
-Near the end of the attract demo sequence, a Spiny enemy spawns and immediately falls through the
-ground/map geometry rather than landing and walking. Expected behavior: Spiny spawns, lands on the
-slope/ground tile, and slides.
+Pokey (sprite $70, NOT Spiny $06 as originally guessed) spawned during the late attract demo
+and fell straight through the ground every cycle, instead of landing and being eaten segment-
+by-segment by Yoshi. Sprite identity verified by polling `$7E:009E,X` during the demo
+(`_triage/poll_sprites.py`); Pokey appears briefly in slots 9 and 6.
 
-**Suspected class:** Sprite-ground collision pipeline for Spiny (sprite type $06, handler
-`Spr006_Spiny` / `Spr0BD` family). Likely the same collision integration that was partially
-investigated for the Koopa-on-slope bug — the `HandleNormalSpriteLevelCollision` gate or the
-gravity/Y-integration chain may not be applying correctly when Spiny first spawns mid-air.
+**Root cause:** wrapper bypass on `$01:9138` (`PHB / PHK / PLB / JSR $9140 / PLB / RTL` wrapper
+around the `HandleNormalSpriteLevelCollision` body at `$01:9140`). Cross-bank `JSL $01:9138`
+callers from bank 02 (13 sites incl. Pokey's at `$02:B6E8`) and bank 03 (4 sites) had
+`name 019138 HandleNormalSpriteLevelCollision` aliasing the wrapper PC directly to the body
+function name → recompiler emitted direct calls to the body, skipping the DB transition. Body
+ran with `DB=$02/$03`, so `LDA.W SpriteObjClippingX/Y,Y` (bank-01 ROM tables) read garbage
+bytes from the wrong bank → bounding-box returned wrong floor offset → tile lookup at
+`$01:9523` mis-indexed Map16 → `$1588 |= $04` never set → Pokey's check at `$02:B6F3`
+(`AND.B #$04 / BEQ +`) always took the no-floor branch → Y-speed never zeroed → Pokey fell.
 
-**Candidate entry points:**
-- `$01:9032` — `SubUpdateSprPos` / `HandleNormalSpriteGravity`; gate at `$15DC,X` (SpriteDisableObjInt)
-- `$01:ABD8` — `UpdateNormalSpritePosition_Y` (Y-integration step)
-- `$01:9449` — `HandleNormalSpriteLevelCollision`
+Same wrapper-bypass class as Issue G ($01:8042 / $01:90B2) and Codex's $01:802A fix in
+commit 9dc3131.
 
-**Approach:** func_watch on `Spr006_Spiny_M1X1` to confirm the slot and frame; then
-block_watch_arm at the gravity-gate and collision-gate PCs for the slot carrying Spiny.
-Compare vs oracle. If the gate is skipping in recomp but not oracle, trace the upstream WRAM
-writer for the gating byte.
+**Fix:**
+- `recomp/bank01.cfg`: declared `func HandleNormalSpriteLevelColl_Wrap 9138 sig:void(uint8_k)`
+- `recomp/bank02.cfg` + `recomp/bank03.cfg`: renamed
+  `name 019138 HandleNormalSpriteLevelCollision` → `HandleNormalSpriteLevelColl_Wrap`
+
+Ring-verified post-fix: every entry to `$01:9140` (body) now has `DB=$01` (was `$02` pre-fix).
+Pokey `$70` stays active in slot 9 for ~32 sample frames vs ~4 pre-fix. **User confirmed
+Pokey no longer falls.**
+
+### Issue F-eat — Yoshi-eats-Pokey removes wrong # of segments (attract demo) — FIXED 2026-05-11
+
+After the falls-through fix, the Yoshi-swallow logic was wrong: 1st bite removed 3 Pokey
+segments (5→2), 2nd bite removed 1 (2→1, head only), 3rd+ bites removed nothing — Pokey's
+head was stuck forever, Yoshi got hurt walking through it. Expected: 5→4→3→2→1→0 one
+segment per bite.
+
+**Root cause:** another wrapper bypass, exact same class. `$02:B81C` is the
+`PHB / PHK / PLB / JSR $B7ED / PLB / RTL` wrapper around the `RemovePokeySgmntRt` body at
+`$02:B7ED`. Bank 01's Yoshi-swallow code at `$01:F5E0`-ish (SMWDisX bank_01.asm:15824)
+does `JSL RemovePokeySegment` → `$02:B81C`. Pre-fix cfg:
+- `bank02.cfg`: `name 02b7ed Spr070_Pokey_RemovePokeySegment` — body PC named with the
+  wrapper-canonical name.
+- `bank01.cfg`: `name 02b81c Spr070_Pokey_RemovePokeySegment …` — cross-bank caller
+  routed to the body-named function.
+- No `name` for `$02:B81C` in bank02.cfg → wrapper never emitted as its own callable.
+
+Bank 01's JSL resolved to the body at `$02:B7ED`, ran it with `DB=$01`. The body's
+`AND.W PokeyUnsetBit,Y` (`$02:B805`) is `AND abs,Y` — read mask from `cpu->DB:0xB824+Y`.
+With `DB=$01`, the read landed on `$01:B824+Y` (arbitrary bank-01 ROM bytes) instead of
+`$02:B824+Y` (correct table `EF F7 FB FD FE`). Each bite ANDed `$7E:00C2,X` (segment
+bitmap) against a random mask byte → wrong segments cleared, eventually mask happened to
+be `$FF` for the head's Y-delta → 0 bits cleared → head stuck.
+
+**Fix:**
+- `recomp/bank02.cfg`: renamed `name 02b7ed Spr070_Pokey_RemovePokeySegment` →
+  `name 02b7ed Spr070_Pokey_RemovePokeySgmntRt` (body now has body-specific name).
+- `recomp/bank02.cfg`: added `name 02b81c Spr070_Pokey_RemovePokeySegment sig:uint8(uint8_k,uint8_a)`
+  — wrapper correctly declared at its real PC.
+- `recomp/bank01.cfg`: kept `name 02b81c Spr070_Pokey_RemovePokeySegment …` as-is
+  (now correctly resolves to the wrapper).
+
+Ring-verified: body `$02:B7ED` entries now consistently `DB=$02` (was `$01`), `S=$01F6`
+(was `$01F7`, deeper by 2 due to wrapper PHB+PHK). Wrapper code at `$02:B81C` properly
+emitted in `src/gen/smw_02_v2.c:94750`. User visual confirmation pending.
+
+**Latent follow-up (not fixed, may be silent):** same wrapper-bypass pattern at
+`$01:801A` (UpdateYPosNoGvtyW), `$01:8022` (UpdateXPosNoGvtyW), `$01:8032` (SprSprInteract),
+`$01:803A` (SprSpr_MarioSprRts). Their bodies access only mirrored low-RAM (<$2000) so
+DB-mismatch is invisible. Suspect them if any future visual bug points there.
+
+**Framework-level cleanup queued:** snesrecomp linter pass to detect `name <pc> <fn>`
+directives where the bytes at `<pc>` match the SMW wrapper signature
+`8B 4B AB 20 LO HI AB 6B` and `<fn>`'s declared PC ≠ `<HI:LO>`. Would catch all four
+extant wrapper bypasses ($802A, $8042/$90B2, $9138, $02:B81C) automatically.
 
 ### Issue G — Piranha plant visually malformed
 
