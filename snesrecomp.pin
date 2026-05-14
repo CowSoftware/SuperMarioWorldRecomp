@@ -3,7 +3,20 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 14c8eea0295100e509680279c4b4581ea3bb0706
+sha = d702f216e3060c4eb98ba53f7e29ad2ef888c30b
+# Branch: main. Bumped 2026-05-14 from 14c8eea to land one-shot
+# DB-watch latch in the runner — prevents a corruption loop that
+# cycles DB through the watched value from restreaming the trace
+# ring to stderr 60+×/sec.
+#   d702f21  runner: one-shot DB-watch — disarm before dumping.
+#            Mirrors S-watch / WRAM-trip / func-watch disarm
+#            pattern. Trace data remains queryable via
+#            cpu_trace_get_v2 + TCP ring API. Verified: prior
+#            session's full corruption loop produced ~hundreds of
+#            thousands of [PLB]/[JSL]/[RTL] lines; current run
+#            capped at 1045 lines (single capture, no re-fire).
+#
+# Earlier on this branch:
 # Branch: main. Bumped 2026-05-13 from 7203539 to land third class fix
 # in the post-attract-demo cfg debt cleanup: auto-detect leaf-function
 # `exit_mx_at` directive sites.

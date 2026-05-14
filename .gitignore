@@ -57,3 +57,7 @@ src/gen/
 # Triage scratch
 _triage/
 hw_trace.log
+
+# Release artifacts (built locally, uploaded via gh release upload)
+SuperMarioWorldRecomp-windows-*.zip
+release-stage/
