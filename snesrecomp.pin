@@ -3,8 +3,31 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 7203539841300c855d2193fa06181afaea6b31cf
-# Branch: main. Bumped 2026-05-11 from c457ea0 to land second class
+sha = 14c8eea0295100e509680279c4b4581ea3bb0706
+# Branch: main. Bumped 2026-05-13 from 7203539 to land third class fix
+# in the post-attract-demo cfg debt cleanup: auto-detect leaf-function
+# `exit_mx_at` directive sites.
+#   14c8eea  v2: auto-detect leaf-function exit-(M, X) state mutations.
+#            Decoder pre-pass scans every cfg `func` whose decoded body
+#            contains NO JSR/JSL (leaf), computes the function's exit
+#            (M, X) via the existing analyzer, and synthesises an
+#            `exit_mx_at` annotation if exit != entry. Replaces the
+#            opt-in cfg `exit_mx_at` directive at all leaf sites.
+#            Detected 23 leaf mutations across SMW's cfg (palette/fade
+#            routines, BufferScrollingTiles_* 6 variants,
+#            BufferCreditsBackgrounds_*, BufferBGTilemap,
+#            HandlePaletteFades_Sub, HandleSPCUploads_Inner, several
+#            overworld + level-load leaves). All 23 were silently
+#            miscompiling post-call operand widths since v2 first
+#            shipped. cfg-declared sites win, so $00:F461 / $00:F465
+#            hand-annotations (non-leaf, "Mario dies on slope" fix)
+#            are preserved. Tests 162/165 (+12 new exit-mx-autoroute
+#            tests; 3 pre-existing fails unchanged). Attract demo
+#            visually confirmed no regressions; release Oracle build
+#            green.
+#
+# Earlier on this branch:
+# Bumped 2026-05-11 from c457ea0 to land second class
 # fix in the post-attract-demo cfg debt cleanup: auto-detect cfg
 # `tail_call:<pc>` directive sites.
 #   7203539  v2: auto-detect tail-call fallthrough cfg sites. Decoder
