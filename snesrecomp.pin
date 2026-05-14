@@ -3,7 +3,34 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = ba97eb7fd6658c004035e89b5d3dc9936408d728
+sha = e7fd85b9460275f399b5ac4d728628b6601fa5d5
+# Branch: main. Bumped 2026-05-14 from ba97eb7 to land the leaf
+# auto-router pass 2 (multi-variant convergent exit detection).
+# Closes the FileSelectColorMath-shape class — leaf functions
+# whose body forces (m, x) into a fixed value regardless of
+# entry, but whose cfg-declared entry happens to land on the
+# post-SEP/REP state so pass 1 (cfg-declared entry mutates)
+# didn't fire.
+#   e7fd85b  v2: leaf auto-router pass 2 — multi-variant
+#            convergent exit detection. Detection count on SMW:
+#            23 → 44 (21 new sites). Includes
+#            UpdateStatusBarCounters, SaveGame, ClearOverworld
+#            AndCutsceneRAM, HandlePaletteFades_Sub,
+#            DrawOverworldPlayer_DrawCurrentPlayer,
+#            BufferBGTilemap, BufferScrollingTiles_* (5),
+#            BufferCreditsBackgrounds_* (2), and others spanning
+#            HDMA / palette / scrolling tile buffers / credits
+#            cinema / bank-04 overworld leaves. The user-facing
+#            FileSelectColorMath fix at $00:9D30 (hand-annotated
+#            in recomp/bank00.cfg) is divergent across (m, x)
+#            entries (exit varies with entry x) so the class fix
+#            does NOT cover it — the hand annotation remains the
+#            singular fix for that site. Audit script at
+#            tools/audit_leaf_exit_mx_variants.py verifies subgroup
+#            A (convergent miss) drops to 0 post-fix. Tests
+#            162/165 unchanged. Attract demo soak clean.
+#
+# Earlier on this branch:
 # Branch: main. Bumped 2026-05-14 from d702f21 to land LoROM/HiROM
 # SRAM routing in cpu_state.c — unblocks save/menu navigation by
 # correctly routing $70-$7D:0000-$7FFF and $00-$3F:6000-$7FFF reads
