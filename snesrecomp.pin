@@ -3,7 +3,24 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = d702f216e3060c4eb98ba53f7e29ad2ef888c30b
+sha = ba97eb7fd6658c004035e89b5d3dc9936408d728
+# Branch: main. Bumped 2026-05-14 from d702f21 to land LoROM/HiROM
+# SRAM routing in cpu_state.c — unblocks save/menu navigation by
+# correctly routing $70-$7D:0000-$7FFF and $00-$3F:6000-$7FFF reads
+# through the cart's battery RAM instead of falling through to
+# RomPtr (which trips "RomPtr-invalid" off-rails).
+#   ba97eb7  runner: route LoROM/HiROM SRAM reads/writes in
+#            cpu_read*/cpu_write*. Mirrors snes9x's cart_readLorom
+#            and cart_readHirom mappings via a new cpu_sram_offset
+#            helper that indexes g_sram. Verified end-to-end on
+#            SMW: VerifySaveFile at $00:9DB5 now reads
+#            SaveDataChecksum at $70:01AB cleanly; pressing Start
+#            from title transitions into file-select without
+#            firing OFF-RAILS. Subsequent variant-mismatch (a
+#            separate exit_mx_at cfg directive in this SMW commit)
+#            handles the post-FileSelectColorMath miscompile.
+#
+# Earlier on this branch:
 # Branch: main. Bumped 2026-05-14 from 14c8eea to land one-shot
 # DB-watch latch in the runner — prevents a corruption loop that
 # cycles DB through the watched value from restreaming the trace

@@ -139,3 +139,71 @@ the current shipping state. The two hand-annotated non-leaf
 handle the "Mario dies on slope" case. No live bug; just a
 remaining class-fix opportunity that needs analyzer investment
 before the auto-router can take it on safely.
+
+---
+
+## Leaf auto-router multi-variant gap (2026-05-14)
+
+### What's missing
+
+`snesrecomp/recompiler/v2/exit_mx_autoroute.py::detect_and_route`
+scans each cfg `func` entry's DECLARED entry `(m, x)` only. For
+functions whose body's effect on (M, X) depends on the entry state
+— e.g. `SEP #$20` is a no-op under entry m=1 but mutating under
+entry m=0 — the router misses the mutating variants if the
+declared entry happens to be the non-mutating one.
+
+`FileSelectColorMath` at `$00:9D30` is the canonical case (closed
+2026-05-14 by hand-annotated `exit_mx_at 009d30 1 1` in
+`recomp/bank00.cfg`):
+
+- Body: `STA $0701 ; STY $40 ; SEP #$20 ; RTS` (3 insns + SEP + RTS,
+  no JSR/JSL — leaf).
+- Cfg-declared entry (M1X1): SEP is a no-op, exit = entry, router
+  skips.
+- Discovered M0X1 entry (called from `GameMode08_FileSelect_M1X1`
+  after `REP #$20` at `$00:9CD1`): SEP forces m=1, exit (1,1)
+  differs from entry (0,1).
+- Visible symptom: file-select crashed at first call with off-rails
+  hint `$00:D000FF` inside `CheckWhichControllersArePluggedIn` at
+  `$00:9A53`, because the decoder assumed (M, X) preserved across
+  the JSR at `$9CD8`, fell through into the wrong variant of
+  `HandleMenuCursor_9ACB`, which mis-decoded operand widths.
+
+### Why a class fix is hard
+
+The cfg `exit_mx_at <addr> <m> <x>` directive is per-PC, not
+per-entry-variant. For functions whose exit depends on entry:
+
+- `FileSelectColorMath`: forces m=1, preserves x. Across 4 entry
+  (m, x) combos, exits are (1,0), (1,1), (1,0), (1,1) — three
+  distinct tuples. No single `exit_mx_at` covers all entries.
+- For SMW today, only M0X1 + M1X1 are discovered, and both have
+  x=1, so `1 1` is correct for all live callers.
+
+A generalized fix needs one of:
+
+1. Per-variant `exit_mx_at` cfg directive (schema change).
+2. "Preserve" sentinel (e.g. `exit_mx_at 9d30 1 -` meaning x kept
+   from entry).
+3. Reorder pipeline so variant discovery runs before the auto-router,
+   then commit per-discovered-entry routes.
+
+Each is a multi-day investment. Hand-annotation matches the existing
+$00:F461 / $00:F465 pattern and is provably correct against
+SMWDisX + the ROM bytes; deferred to whichever (m, x) site shows up
+next.
+
+### Detection heuristic for future audit
+
+When the next "variant mismatch → off-rails inside an apparently
+correct callee" surfaces, the audit is mechanical:
+
+1. Scan all 4 (m, x) entry combos for every cfg `func` whose body
+   has no JSR/JSL.
+2. Flag the leafs where some entry's exit (m, x) differs from
+   that entry's (m, x) AND that entry was discovered.
+3. Hand-annotate `exit_mx_at` per flagged site.
+
+This is bounded (one pass over the cfg, ~5 minutes per regen) but
+not autonomous until the per-variant directive lands.
