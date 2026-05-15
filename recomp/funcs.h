@@ -15,7 +15,7 @@
 
 #include "cpu_state.h"
 
-/* 1939 functions across all banks (5 decls each). */
+/* 1938 functions across all banks (5 decls each). */
 
 void I_RESET(CpuState *cpu);  /* $00:8000 alias */
 RecompReturn I_RESET_M0X0(CpuState *cpu);
@@ -942,11 +942,6 @@ RecompReturn PlayerState0B_RescuedPeach_M0X0(CpuState *cpu);
 RecompReturn PlayerState0B_RescuedPeach_M0X1(CpuState *cpu);
 RecompReturn PlayerState0B_RescuedPeach_M1X0(CpuState *cpu);
 RecompReturn PlayerState0B_RescuedPeach_M1X1(CpuState *cpu);
-void auto_00_C61E(CpuState *cpu);  /* $00:C61E alias */
-RecompReturn auto_00_C61E_M0X0(CpuState *cpu);
-RecompReturn auto_00_C61E_M0X1(CpuState *cpu);
-RecompReturn auto_00_C61E_M1X0(CpuState *cpu);
-RecompReturn auto_00_C61E_M1X1(CpuState *cpu);
 void PlayerState0C_CastleDestructionMoves(CpuState *cpu);  /* $00:C6E7 alias */
 RecompReturn PlayerState0C_CastleDestructionMoves_M0X0(CpuState *cpu);
 RecompReturn PlayerState0C_CastleDestructionMoves_M0X1(CpuState *cpu);
