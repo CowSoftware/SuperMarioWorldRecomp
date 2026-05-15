@@ -578,3 +578,48 @@ is a poor fit.
 
 Estimated residual after that rip: smw_spc_player.c shrinks from
 ~1300 lines to ~150 lines.
+
+---
+
+## Session 2026-05-14 — first-koopa-boss platform doesn't spawn, game freezes
+
+**Context:** Reported by user during play-testing the post-v0.3.0 build
+(playable milestone with overworld navigable + save persistence). User
+reached the first koopa boss fight in world 1 (Iggy's castle); the
+boss's platform never spawned and the game froze on entering the
+fight.
+
+**Symptom:** Boss fight room loads, boss arena visible, but the
+platform that the koopa stands on / Mario lands on doesn't appear.
+Game becomes unresponsive (no input progression, may still NMI but
+nothing playable).
+
+**Likely class:** sprite spawn failure for boss-specific extended
+object or boss-fight gimmick. Could share root with the historical
+ParseLevelSpriteList branch-emit-as-return bug (closed 2026-04-21,
+re-verified obsolete 2026-05-14 via D1 cleanup test). Could be a
+distinct sprite or extended-object class. Could also be an
+Iggy-specific dispatch table not yet covered by indirect_call_table
+authorization.
+
+**Reproduction:** From v0.3.0 build, navigate Yoshi's Island 1 →
+Switch Palace → Donut Plains 1 / equivalent path through to Iggy's
+castle. (Or use a savestate just before the boss room.)
+
+**Probes to run when investigation begins:**
+- Watch boss-room sprite spawn list (`ParseLevelSpriteList_Entry2`
+  invocations + sprite slot fill rate)
+- Check ExtObj table for boss-platform handler
+- Compare oracle vs recomp at boss-room entry frame for first
+  divergence (VRAM, OAM, sprite RAM)
+- Check stack/phantom-PC traps for fires during boss-room load
+- Check if the freeze is a true CPU hang vs main-loop stuck in
+  spinwait — watchdog should catch the former
+
+**Why deferred:** cleanup-pass priority during chore/cleanup branch.
+Re-prioritize after cleanup work completes. Capture a savestate just
+before the boss room as starting probe state.
+
+**Tools needed:** none beyond the existing always-on rings. F1–F4
+keyboard savestates work in this build (verified path:
+src/main.c:1015 RtlSaveLoad).
