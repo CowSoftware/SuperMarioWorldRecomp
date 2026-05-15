@@ -3,7 +3,31 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = e7fd85b9460275f399b5ac4d728628b6601fa5d5
+sha = f9f48a519eae559577dc8c0408ee8a017c78da6a
+# Branch: main. Bumped 2026-05-14 from e7fd85b to land the NLR
+# detector case (d) — PLA*N at block start + branching tail.
+# Closes the HandleSelectionCursor-shape class: leaf-ish functions
+# whose body has `PLA PLA` at the START of a block (eating the
+# immediate parent's return address) followed by stateless logic
+# and a CondBranch/Goto/fall-through that all reach RTS. Cases
+# (a/b/c) only matched PLA*N immediately preceding the terminator,
+# so this shape escaped recognition and the function exited with
+# +2 stack drift that accumulated per call.
+#   f9f48a5  v2: NLR detector case (d) — PLA*N at block start +
+#            branching tail. Canonical case: SMW $00:9AEA
+#            HandleSelectionCursor.CheckMovement. Detection count
+#            on SMW: 4 new variant sites at 2 unique PCs —
+#            $00:9AEA HandleMenuCursor (M1X1 + M0X1 + aliases)
+#            and $00:EFFF RunPlayerBlockCode_00EFE8_ReturnsTwice.
+#            Verified live end-to-end on SMW: user pressed Start
+#            once at title → menu advanced title → 1P/2P →
+#            file-select MARIO A/B/C → save selected → Yoshi's
+#            Island intro → playable level → overworld reached
+#            (overworld has separate visual corruption —
+#            downstream bug). Attract-demo soak clean to frame
+#            8124. v2 tests 162/165 unchanged.
+#
+# Earlier on this branch:
 # Branch: main. Bumped 2026-05-14 from ba97eb7 to land the leaf
 # auto-router pass 2 (multi-variant convergent exit detection).
 # Closes the FileSelectColorMath-shape class — leaf functions
