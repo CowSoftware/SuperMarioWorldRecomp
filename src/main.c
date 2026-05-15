@@ -922,6 +922,8 @@ error_reading:;
   if (g_config.autosave)
     HandleCommand(kKeys_Save + 0, true);
 
+  RtlWriteSram();
+
   // clean sdl
   SDL_PauseAudioDevice(g_audio_device, 1);
   SDL_CloseAudioDevice(g_audio_device);
