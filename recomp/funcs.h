@@ -15,7 +15,7 @@
 
 #include "cpu_state.h"
 
-/* 1954 functions across all banks (5 decls each). */
+/* 1939 functions across all banks (5 decls each). */
 
 void I_RESET(CpuState *cpu);  /* $00:8000 alias */
 RecompReturn I_RESET_M0X0(CpuState *cpu);
@@ -5897,81 +5897,6 @@ RecompReturn sub_02ffd1_M0X0(CpuState *cpu);
 RecompReturn sub_02ffd1_M0X1(CpuState *cpu);
 RecompReturn sub_02ffd1_M1X0(CpuState *cpu);
 RecompReturn sub_02ffd1_M1X1(CpuState *cpu);
-void sub_03_02e0(CpuState *cpu);  /* $03:02E0 alias */
-RecompReturn sub_03_02e0_M0X0(CpuState *cpu);
-RecompReturn sub_03_02e0_M0X1(CpuState *cpu);
-RecompReturn sub_03_02e0_M1X0(CpuState *cpu);
-RecompReturn sub_03_02e0_M1X1(CpuState *cpu);
-void sub_03_0e8c(CpuState *cpu);  /* $03:0E8C alias */
-RecompReturn sub_03_0e8c_M0X0(CpuState *cpu);
-RecompReturn sub_03_0e8c_M0X1(CpuState *cpu);
-RecompReturn sub_03_0e8c_M1X0(CpuState *cpu);
-RecompReturn sub_03_0e8c_M1X1(CpuState *cpu);
-void sub_03_0e99(CpuState *cpu);  /* $03:0E99 alias */
-RecompReturn sub_03_0e99_M0X0(CpuState *cpu);
-RecompReturn sub_03_0e99_M0X1(CpuState *cpu);
-RecompReturn sub_03_0e99_M1X0(CpuState *cpu);
-RecompReturn sub_03_0e99_M1X1(CpuState *cpu);
-void sub_03_0ea1(CpuState *cpu);  /* $03:0EA1 alias */
-RecompReturn sub_03_0ea1_M0X0(CpuState *cpu);
-RecompReturn sub_03_0ea1_M0X1(CpuState *cpu);
-RecompReturn sub_03_0ea1_M1X0(CpuState *cpu);
-RecompReturn sub_03_0ea1_M1X1(CpuState *cpu);
-void sub_03_0ea8(CpuState *cpu);  /* $03:0EA8 alias */
-RecompReturn sub_03_0ea8_M0X0(CpuState *cpu);
-RecompReturn sub_03_0ea8_M0X1(CpuState *cpu);
-RecompReturn sub_03_0ea8_M1X0(CpuState *cpu);
-RecompReturn sub_03_0ea8_M1X1(CpuState *cpu);
-void sub_03_0eab(CpuState *cpu);  /* $03:0EAB alias */
-RecompReturn sub_03_0eab_M0X0(CpuState *cpu);
-RecompReturn sub_03_0eab_M0X1(CpuState *cpu);
-RecompReturn sub_03_0eab_M1X0(CpuState *cpu);
-RecompReturn sub_03_0eab_M1X1(CpuState *cpu);
-void sub_03_0eaf(CpuState *cpu);  /* $03:0EAF alias */
-RecompReturn sub_03_0eaf_M0X0(CpuState *cpu);
-RecompReturn sub_03_0eaf_M0X1(CpuState *cpu);
-RecompReturn sub_03_0eaf_M1X0(CpuState *cpu);
-RecompReturn sub_03_0eaf_M1X1(CpuState *cpu);
-void sub_03_12da(CpuState *cpu);  /* $03:12DA alias */
-RecompReturn sub_03_12da_M0X0(CpuState *cpu);
-RecompReturn sub_03_12da_M0X1(CpuState *cpu);
-RecompReturn sub_03_12da_M1X0(CpuState *cpu);
-RecompReturn sub_03_12da_M1X1(CpuState *cpu);
-void sub_03_1820(CpuState *cpu);  /* $03:1820 alias */
-RecompReturn sub_03_1820_M0X0(CpuState *cpu);
-RecompReturn sub_03_1820_M0X1(CpuState *cpu);
-RecompReturn sub_03_1820_M1X0(CpuState *cpu);
-RecompReturn sub_03_1820_M1X1(CpuState *cpu);
-void sub_03_1fe9(CpuState *cpu);  /* $03:1FE9 alias */
-RecompReturn sub_03_1fe9_M0X0(CpuState *cpu);
-RecompReturn sub_03_1fe9_M0X1(CpuState *cpu);
-RecompReturn sub_03_1fe9_M1X0(CpuState *cpu);
-RecompReturn sub_03_1fe9_M1X1(CpuState *cpu);
-void sub_03_207b(CpuState *cpu);  /* $03:207B alias */
-RecompReturn sub_03_207b_M0X0(CpuState *cpu);
-RecompReturn sub_03_207b_M0X1(CpuState *cpu);
-RecompReturn sub_03_207b_M1X0(CpuState *cpu);
-RecompReturn sub_03_207b_M1X1(CpuState *cpu);
-void sub_03_215a(CpuState *cpu);  /* $03:215A alias */
-RecompReturn sub_03_215a_M0X0(CpuState *cpu);
-RecompReturn sub_03_215a_M0X1(CpuState *cpu);
-RecompReturn sub_03_215a_M1X0(CpuState *cpu);
-RecompReturn sub_03_215a_M1X1(CpuState *cpu);
-void sub_03_217a(CpuState *cpu);  /* $03:217A alias */
-RecompReturn sub_03_217a_M0X0(CpuState *cpu);
-RecompReturn sub_03_217a_M0X1(CpuState *cpu);
-RecompReturn sub_03_217a_M1X0(CpuState *cpu);
-RecompReturn sub_03_217a_M1X1(CpuState *cpu);
-void sub_03_2b80(CpuState *cpu);  /* $03:2B80 alias */
-RecompReturn sub_03_2b80_M0X0(CpuState *cpu);
-RecompReturn sub_03_2b80_M0X1(CpuState *cpu);
-RecompReturn sub_03_2b80_M1X0(CpuState *cpu);
-RecompReturn sub_03_2b80_M1X1(CpuState *cpu);
-void sub_03_6d48(CpuState *cpu);  /* $03:6D48 alias */
-RecompReturn sub_03_6d48_M0X0(CpuState *cpu);
-RecompReturn sub_03_6d48_M0X1(CpuState *cpu);
-RecompReturn sub_03_6d48_M1X0(CpuState *cpu);
-RecompReturn sub_03_6d48_M1X1(CpuState *cpu);
 void Spr01B_Football(CpuState *cpu);  /* $03:8012 alias */
 RecompReturn Spr01B_Football_M0X0(CpuState *cpu);
 RecompReturn Spr01B_Football_M0X1(CpuState *cpu);
