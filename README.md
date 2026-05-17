@@ -21,20 +21,32 @@ because the SNES PPU has no instruction stream and the SPC700 is a
 separate processor with its own firmware that the cartridge uploads
 to a separate chip.
 
-## Current status (playable end-to-end through Yoshi's Island)
+## Current status: believed fully playable
 
-The recompiled binary boots, plays through Yoshi's Island end-to-end
-including the Iggy castle boss, and reaches Donut Plains. **First
-world is hand-verified playable.** Worlds 2–7 and special content are
-untested.
+Hand-verified end-to-end through:
+- **Yoshi's Island (World 1)** including Iggy's castle boss.
+- **Donut Plains (World 2)** end-to-end.
+- **Vanilla Dome (World 3)** in progress at time of writing.
+
+No catastrophic visible regressions surfaced through these worlds.
+Two runtime tripwires (the M/X claim verifier and the
+async-cpu->m_flag/x_flag-write detector) are armed at boot and have
+not latched on the verified worlds. An off-rails event was captured
+in `BufferScrollingTiles_Layer1_VerticalLevel_M1X1` during Donut
+Plains castle (bank-out-of-range pointer read; runtime mirrors the
+read to a safe location and gameplay continues) — see
+[`ISSUES.md`](ISSUES.md) for the bucketed capture and the
+`offrails_get` TCP query.
+
+Worlds 4–7 and special content (Star Road, Special World) are not
+yet hand-verified but are expected to play similarly. If you hit a
+visible regression, please open an issue with a savestate and the
+`offrails_get` / `mx_async_check_get` JSON snapshots.
 
 Active development; expect:
 - Some branches don't build; only `main` is guaranteed to build.
 - Internal docs (`ISSUES.md`, `ENHANCEMENTS.md`) assume context.
 - APIs and recompiler output change without notice.
-- Latent bugs in code paths Yoshi's Island doesn't exercise — see
-  [`ISSUES.md`](ISSUES.md) for known open items including a runtime
-  M/X-flag verifier trip we caught with the always-on tripwire.
 
 See [`RELEASE.md`](RELEASE.md) for the latest release notes.
 
