@@ -5,43 +5,38 @@ using the [snesrecomp](https://github.com/mstan/snesrecomp) framework.
 This repo is the per-game side: the runtime, the recompiled C output,
 the per-game `.cfg`, and the build glue.
 
-> ## ⚠️ Heavily Work-In-Progress — NOT A PLAYABLE BUILD
->
-> The recompiled binary boots and renders the title screen and attract
-> demo, but **the game is not playable**. Active gameplay (entering a
-> level, controlling Mario, completing a stage) has not been
-> end-to-end verified and is **assumed broken**.
->
-> Treat this repo as an in-progress engineering snapshot, not a
-> release. Expect:
-> - Branches that don't build.
-> - Internal docs that assume context from active development.
-> - APIs and recompiler output that change without notice.
-> - Known visual and behavioral bugs even in the parts that "run."
+## What "static recompilation" means here
 
-## What works (sort of)
+The 65816 CPU code from the ROM is statically translated to C — every
+function the game runs on the SNES's main CPU is a real generated C
+function in `src/gen/`. **The rest of the SNES is not recompiled** —
+it's hardware. PPU rendering, the APU / SPC700 audio coprocessor, DMA
+and HDMA channels, hardware register I/O, and bank-mapping all run
+through an embedded copy of snes9x's emulator core
+(`snesrecomp/runner/snes9x-core/`). This is the same model other
+static-recomp projects (N64Recomp, etc.) use: recompile the CPU,
+emulate the silicon. If you expected the PPU and APU to be recompiled
+too, they aren't — and a static recompiler can't recompile them
+because the SNES PPU has no instruction stream and the SPC700 is a
+separate processor with its own firmware that the cartridge uploads
+to a separate chip.
 
-- Boot and title screen render.
-- Attract-demo cinematic plays through and renders.
+## Current status (playable end-to-end through Yoshi's Island)
 
-## Known visible bugs in the attract demo
+The recompiled binary boots, plays through Yoshi's Island end-to-end
+including the Iggy castle boss, and reaches Donut Plains. **First
+world is hand-verified playable.** Worlds 2–7 and special content are
+untested.
 
-Even the parts that render have moderate visible bugs:
+Active development; expect:
+- Some branches don't build; only `main` is guaranteed to build.
+- Internal docs (`ISSUES.md`, `ENHANCEMENTS.md`) assume context.
+- APIs and recompiler output change without notice.
+- Latent bugs in code paths Yoshi's Island doesn't exercise — see
+  [`ISSUES.md`](ISSUES.md) for known open items including a runtime
+  M/X-flag verifier trip we caught with the always-on tripwire.
 
-- Berries render with the wrong palette (appear as `?` blocks).
-- Some enemies are missing entirely.
-- Some enemies are invisible but still interact (stompable, etc.).
-- `?` blocks do not respond to being hit.
-- Physics on sloped surfaces is incorrect (Mario sinks / mis-aligns).
-
-This list is non-exhaustive — additional bugs almost certainly exist
-in code paths the attract demo doesn't exercise.
-
-## In-game gameplay
-
-**Not verified.** Past the attract demo, no part of the game has been
-manually played end-to-end. Anything beyond "the screen renders"
-should be assumed to be broken.
+See [`RELEASE.md`](RELEASE.md) for the latest release notes.
 
 ## Quick start (pre-built release)
 

@@ -20,6 +20,60 @@ trace → framework fix.
 
 ---
 
+## Session 2026-05-16 — RomPtr-invalid latent in BufferScrollingTiles_Layer1_VerticalLevel_M1X1
+
+**Captured by:** the new (this session) bucketed off-rails detector
+that emits a one-line stderr summary per `(tag, high-16-of-hint)`
+bucket and stores full context for retrieval via the
+`offrails_get` TCP command. Replaces the prior multi-thousand-line
+stderr dump that caused multi-second mid-gameplay stalls.
+
+**User-observed trip during Donut Plains castle playthrough:**
+
+```
+[off-rails] [RomPtr-invalid] hit=$BB93AB frame=1055
+            stack_top=BufferScrollingTiles_Layer1_VerticalLevel_M1X1
+            (group=$BB:_)
+```
+
+**Interpretation:**
+- `BufferScrollingTiles_Layer1_VerticalLevel_M1X1` (`$05:8A9B`) is one
+  of the dispatch handlers fanned out from `BufferScrollingTiles_Layer1_Init`
+  ($05:88EC) — the function whose dispatch-terminator class fix landed
+  earlier this same session.
+- `$BB:93AB` is **not in SMW's 16-bank ROM** (LoROM, valid banks
+  $00–$0F). It's the hint the runtime saw when `RomPtr` was called
+  with an invalid bank. The recompiled function fed `RomPtr` an
+  address whose bank byte is $BB.
+- `RomPtr` mirrors invalid addresses against `rom_size`, so the
+  read returns junk-but-safe data. The game continues; user
+  confirmed only a brief stutter (single fprintf + bucket-record
+  overhead) and no visible regression in gameplay.
+
+**Likely root cause:** a wide-mode (m=0 or x=0) indexed read where
+the index overflowed the 16-bit address space, computing
+`base + index >= $10000`. The 65816 wraps modulo the bank or
+escalates depending on the addressing mode. The recompiled emit
+preserves the computation faithfully but the resulting address is
+junk.
+
+**Not in scope this session.** The detector is now silent enough
+to not interrupt play, the underlying read is mirrored to a safe
+location, and the user has not observed gameplay impact. Pick up
+when a downstream symptom points back to this function — or as a
+proactive root-cause investigation if convenient.
+
+**Next investigator hooks:**
+- Decode `$05:8A9B` (`BufferScrollingTiles_Layer1_VerticalLevel`)
+  body looking for `LDA $XXXX,X` / `LDA $XXXX,Y` with wide index
+  (m=0 or x=0) where `XXXX + index >= $10000`.
+- Query `offrails_get` mid-play to confirm only this one bucket
+  fires (or to identify others that emerged in subsequent levels).
+- Compare against snes9x oracle's WRAM/VRAM at the same moment
+  for any divergence.
+
+---
+
 ## Session 2026-05-16 — DA49 M/X claim trip is verifier-only, benign at site, latent async-x_flag-write upstream
 
 **Context:** End-of-session free-run probe on commit `4c40c40`
