@@ -20,6 +20,114 @@ trace → framework fix.
 
 ---
 
+## Session 2026-05-16 — DA49 M/X claim trip is verifier-only, benign at site, latent async-x_flag-write upstream
+
+**Context:** End-of-session free-run probe on commit `4c40c40`
+(top-level main) / `808e918` (snesrecomp main) — the autoroute
+fixpoint fix had just landed, and the F465 + F461 + 9D30
+`exit_mx_at` hints were all subsumed and removed. A 5-min verifier
+sweep reached frame 4581 before latching on a single trip:
+
+```
+func:  LoadOverworldLayer1AndEvents_04DA49_M1X0
+pc24:  $04:DA49
+claim: m=1, x=0      runtime: m=1, x=1
+stack: InitAndMainLoop_ProcessGameMode_M1X1
+       → GameMode0C_LoadOverworld_M1X1
+       → LoadOverworldLayer1AndEvents_M1X1
+       → LoadOverworldLayer1AndEvents_04D7F2_M0X0
+       → LoadOverworldLayer1AndEvents_04DA49_M1X0
+```
+
+User playtest immediately after: Yoshi's Island plays end-to-end
+including the Iggy boss platform — **no observable regression**
+despite the verifier alarm.
+
+### Why this trip is benign at the call site
+
+DA49's first ROM instruction (verified by `_triage/walk_f465.py`-
+style hex dump):
+
+```
+$04:DA49  C2 30  REP #$30
+$04:DA4B  A5 0F  LDA $0F
+$04:DA4D  29 F8 00  AND #$00F8
+...
+```
+
+The opening `REP #$30` clears both M and X bits in `cpu->P` and
+syncs `cpu_p_to_mirrors`, so `cpu->m_flag` and `cpu->x_flag` are
+both 0 by the time any width-sensitive instruction runs.
+Whichever (M, X) state the function was entered at, the body
+normalizes to (0, 0) at the first instruction. The verifier
+alarm fires BEFORE that REP runs (`cpu_trace_func_entry` is the
+first thing in the emit), so the mismatch is recorded but never
+materializes into wrong-width execution at DA49.
+
+### Why the verifier trip is real (not a false positive)
+
+`LoadOverworldLayer1AndEvents_04D7F2_M0X0`'s body was statically
+audited:
+- `$04:D7F2: C2 30  REP #$30` — opens by clearing M and X.
+- `$04:D7F7: E2 20  SEP #$20` — sets M only.
+- No further M/X-touching op in the entire body (verified via
+  `grep cpu->P = | grep -v ~0x82` in the M0X0 emit body — only
+  two non-NZ P writes, both at the entry REP/SEP pair).
+
+Decoder's static (m=1, x=0) at the JSR-to-DA49 site is faithful
+to the bytes. Yet runtime arrives at DA49 with `cpu->x_flag=1`
+and `cpu->P=0x30` (bit 4 set). Something asynchronous —
+overwhelmingly likely an NMI/IRQ entry/exit path — is setting
+`cpu->x_flag=1` mid-stream of D7F2's body.
+
+### Latent risk
+
+DA49 happens to be self-normalizing at entry, so this specific
+trip causes no visible damage. The same async-write event could
+trip at **another** M0X?/M1X? variant entry whose body does NOT
+start with a REP/SEP — in which case the width mismatch would
+flow into actual emit code (operand widths, indexed addressing).
+Symptom would manifest as silent data corruption on
+overworld-load codepaths or wherever the async source fires.
+
+### Proposed instrumentation (next investigator)
+
+Build a runtime tripwire on every write to `cpu->x_flag`:
+- snesrecomp/runner/src/cpu_state.h: replace direct `cpu->x_flag = ...`
+  assignments with a `cpu_set_x_flag(cpu, v)` helper guarded by
+  `cpu->x_flag != v` and a per-write ring entry (PC + caller
+  + previous/new value + frame).
+- Or: add a one-shot tripwire that records the FIRST write to
+  `cpu->x_flag` that occurs outside an emitted SEP/REP/PLP/RTI
+  region (those writes are decoder-modelled by definition; any
+  other writer is the bug).
+- Arm at boot. Free-run. Query the ring at the first verifier
+  trip moment to find the actual async writer's PC.
+
+Suspect: NMI handler's P-restore path, possibly the recomp's
+`I_NMI` emit body or `cpu_p_to_mirrors` interaction with the
+runtime's NMI dispatch glue.
+
+### Not in scope this session
+
+The trip is captured here for the next investigator. Continuing
+with Donut Plains gameplay testing on main (commit `4c40c40` +
+`808e918`). If a downstream visible regression points back to
+this class — particularly anything Map16-related on overworld
+load — pivot here first.
+
+### Tools left for the investigation
+
+- `_triage/probe_mx_claim.py` — minimal TCP client that queries
+  `mx_claim_check_get`; banner-aware. Existing.
+- `_triage/walk_f465.py` — body-walk script template (deleted at
+  session end; restore from git log of branch
+  `fix/runblockcode-f28c-m0x1-gap` if needed). Can be adapted to
+  walk any function under any (m, x) entry variant and dump every
+  M/X-touching op.
+
+---
+
 ## Session 2026-05-08 — attract demo remaining issues (branch: fix/attract-demo-remaining-bugs)
 
 **Context:** Koopa-on-slope physics fixed by Codex on `fix/koopa-slide-physics` (merged to main
