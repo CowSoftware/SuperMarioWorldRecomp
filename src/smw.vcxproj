@@ -189,6 +189,7 @@
     <ClCompile Include="..\snesrecomp\runner\src\framedump.c" />
     <ClCompile Include="..\snesrecomp\runner\src\launcher.c" />
     <ClCompile Include="..\snesrecomp\runner\src\crc32.c" />
+    <ClCompile Include="..\snesrecomp\runner\src\sha256.c" />
     <ClCompile Include="..\snesrecomp\runner\src\keybinds.c" />
     <ClCompile Include="..\snesrecomp\runner\src\cpu_state.c" />
     <ClCompile Include="..\snesrecomp\runner\src\cpu_trace.c" />
@@ -211,6 +212,7 @@
     <ClCompile Include="gen\smw_0c_v2.c" />
     <ClCompile Include="gen\smw_0d_v2.c" />
     <ClCompile Include="gen\unresolved_stubs_v2.c" />
+    <ClCompile Include="gen\smw_dispatch_v2.c" />
     <ClCompile Include="..\snesrecomp\runner\src\debug_server.c" />
     <!-- Oracle-only sources. ExcludedFromBuild in every non-Oracle configuration
          so Release|x64 / Debug|x64 binaries contain zero oracle code. -->

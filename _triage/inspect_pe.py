@@ -1,5 +1,5 @@
 import struct
-with open(r'F:\Projects\SuperMarioWorldRecomp\build\bin-x64-Oracle\smw.exe', 'rb') as f:
+with open(r'F:\Projects\snesrecomp\SuperMarioWorldRecomp\build\bin-x64-Oracle\smw.exe', 'rb') as f:
     data = f.read(0x1000)
 e_lfanew = struct.unpack_from('<I', data, 0x3c)[0]
 print(f'e_lfanew=0x{e_lfanew:x}')
