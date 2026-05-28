@@ -20,6 +20,129 @@ trace → framework fix.
 
 ---
 
+## Session 2026-05-28 — Option-1 cpu->S model breaks SMW (two-layer root cause; Layer A fixed, Layer B localized)
+
+**Context:** snesrecomp `main` advanced from pre-Option-1 `fe39fb7` to
+`926d61e` (full Option-1 cpu->S return-frame model + MMX OAM/softlock
+fixes). SMW, last "fully playable" at `71358f5`, breaks under it.
+Root-caused this session via **before/after build comparison** (snes9x
+oracle de-emphasized per user), NOT commit-bisect.
+
+**Known-good baseline:** snesrecomp `fe39fb7` + SMW `71358f5` (neither
+pushes/pops cpu->S frames). Backed up (binary + src/gen) at
+`F:\Projects\snesrecomp\_smw_baseline_knowngood\` for side-by-side diff.
+
+**Symptom (full Option-1: snesrecomp `926d61e` + SMW `47213e2`):** boots,
+renders title, plays attract demo (Mario/koopa/Yoshi) normally ~3s, then
+at the demo→Nintendo-Presents transition the screen garbles (half
+"GAME OVER" / half "NINTENDO PRESENTS" overlaid), GameMode ($0100) sticks
+at 01, Nintendo-Presents coin SFX loops, BGM continues.
+
+### Bisection method that converges
+Linear commit-walk does NOT converge: Option-1 is two atomic push/pop
+pairs split across commits (interrupt frame = RTI-pop `@f9c8350` + push
+helper `cpu_push_interrupt_frame` in smw_rtl.c; JSR-return frame =
+miss-restore `@6730164` + push helper `cpu_push_jsr_return_frame` in
+smw_00.c). Every intermediate is a mismatched pair. Also `e7fb7cd`/
+`66d906e` fail to BUILD (WIP `_emit_return` comment bug, cosmetically
+fixed `@abd6bd6`). **Convergent method:** pin snesrecomp at FINAL
+`926d61e` (all pops present), regen once, toggle the SEPARABLE SMW pushes
+(smw_00.c JSR push / smw_rtl.c interrupt push are independent files) —
+every config is a matched pair.
+
+### Two layers
+- **Layer A — per-frame +6 B/frame cpu->S leak.** No-push SMW (`71358f5`)
+  vs Option-1 leaks +6/frame from boot (+4 NMI RTI-pop unmatched, +2
+  main-loop RTS-pop unmatched). Renders + demos early, then drifts up
+  through WRAM ("screen freaks out, gray, music speeds up"). **FIXED**
+  by SMW `47213e2`'s two pushes (they model the real hardware frames —
+  correct, not a band-aid). `_nmi.py` then reads flat +0.
+- **Layer B — −3 B/frame leak on heavy (level-load) frames (the
+  residual regression).** With pushes on (`926d61e`+`47213e2`, NMI
+  balanced), cpu->S is healthy (0x01FB stable) through boot + the whole
+  title demo (frames 1–~200). At frame ~201 the demo LOADS A LEVEL to
+  show gameplay — a heavy frame (~700 exec blocks vs ~77 idle). On these
+  frames the main loop nets **−1** instead of the healthy **+2** (a −3
+  swing); over ~86 frames cpu->S drains 0x01FB→0x0101 into GameMode
+  $0100; stack pushes then clobber GameMode → garbled screen. I_NMI is
+  balanced (+4 every frame, EXONERATED).
+
+### Layer B — RULED OUT (don't re-chase)
+- **Guest stack ops: balanced.** Per-instruction stack-op trace
+  (`stack_op_enable` + `trace_get_v2 event=18`) on the leaking frame:
+  PHA=PLA=13, PHX=PLX=22, PHY=PLY=5, PHP=PLP=14, PHB(7)+PHK(7)=PLB(14).
+  The −3 is 100% in the Option-1 SYNTHETIC return-frame machinery.
+- **Sprite-dispatch RTS-trick: balanced (RED HERRING).** `get_rtstrace`
+  flagged `SprXXX_Generic_Spr0to13Main_M1X1` RTS `@$018C17` → popped
+  `$0180B2` → MISS_UNWIND as the only anomaly. But the block-S
+  trajectory shows the sprite loop (`$0180A9`→`$0180AF`→`$0180B2`) holds
+  cpu->S=0x01F1 on EVERY iteration including through SprXXX — balanced.
+  The MISS_UNWIND is a symptom (its entry_s reflects the already-drained
+  stack), not the cause.
+
+### Layer B — where the leak IS (exact op not yet pinned)
+In the heavy-frame call chain BETWEEN the main loop and the (balanced)
+sprite loop — a level-processing function netting −3 only on the
+level-load path. Prime-suspect subsystem: the Option-1 **JSL-table
+dispatch** emitter `_emit_dispatch` (`recompiler/v2/codegen.py`
+~1382-1435, "JSL dispatch — short=2B/long=3B table" = SMW's sprite-status
+ExecutePtr trampoline), which sets `host_return_valid=0` and host-calls
+the handler WITHOUT pushing a return frame, relying on the handler's RTS
+to re-dispatch + miss-restore (`entry_s+frame_sz` in
+`cpu_dispatch_pc_from`). SAME CLASS as the MMX heavy-load softlock
+`6730164` targets.
+
+### FIX LANDED 2026-05-28 — main-loop stack-neutrality invariant (SMW glue)
+
+The steady −3/frame leaker **resists function-boundary instruments** — it
+exits via the synthetic dispatch/miss-restore/NLR machinery, not a clean
+function-boundary net. The `stack_drift` tripwire only caught **−1 red
+herrings** (`GameMode14_InLevel` @ the load frame; `ClearLayer3Tilemap` @
+the degraded state) and the steady leaker never tripped it. Mechanism:
+on heavy frames the GameMode-handler exit path doesn't fully recover the
+`cpu_push_jsr_return_frame` synthetic frame (−3/frame). The handler's
+actual work is correct (guest PH/PL balance).
+
+**Fix** (`src/smw_00.c`, `SmwRunOneFrameOfGame_Internal`): snapshot
+`cpu->S` before the modelled main-loop JSR push and **restore it after the
+handler returns** — enforcing the guest invariant that a `JSR
+ProcessGameMode` iteration is stack-neutral, at the explicit dispatch
+boundary (PRINCIPLES.md-sanctioned stack normalization). SMW-glue-only —
+**no recompiler / MMX change, no regen**.
+
+**VERIFIED:** `_nmi.py` flat at `0x01FB`, **+0 drift over 2419 frames**
+(was −3/frame); title screen renders cleanly; GameMode cycles
+`06→07→05→07` (baseline shape, no demo-end garble). **User confirmed "no
+regression"** and is testing World 1 gameplay.
+
+**Still pending:** finish SMW gameplay validation (World 1), then the
+cross-game guard — MMX (fish-explosion + health-capsule + boot) + LttP.
+MMX-regression risk ≈ 0 (no shared recompiler/runtime change; the only
+edit is SMW's own glue). Note: this is a glue-level normalization, not a
+recompiler-class fix — the underlying Option-1 synthetic-frame
+non-recovery on complex handler exit paths still exists in the codegen
+and could resurface on another game/handler; a future class-level fix in
+the dispatch/miss-restore machinery would subsume it (the known-good
+known-bad reference pair + tooling above remain valid for that).
+
+### Tooling (this session)
+- Known-good backup: `_smw_baseline_knowngood\` (binary + src-gen).
+- `_nmi.py <port>`: per-frame NMI-enter-S drift (boundary ring).
+- `trace_get_v2 event=0|13|14|18`: block / func-entry / WRAM-write /
+  stack-op events w/ cpu->S (frame_lo/frame_hi works for block +
+  WRAM-write; func-entry has frame=0).
+- `get_rtstrace` + `rtstrace_range <lo> <hi>`: RTS-decision log
+  (HOST_RETURN/DISPATCH/MISS_UNWIND/ANCESTOR_SKIP) w/ entry_s/ret_s/
+  s_after; auto-freezes on ANCESTOR_SKIP.
+- `stack_op_enable` + `event=18`: per-instruction push/pull trace.
+- `freeze_at_frame` (env `SNESRECOMP_FREEZE_AT_FRAME=N`, race-free) /
+  `freeze_now` / `freeze_status`: freeze all rings to stop eviction.
+- `stack_drift_arm <frame_min>` / `stack_drift_get`: tripwire on first
+  NORMAL function exit with entry_S≠exit_S (currently false-trips on
+  RTS-trick functions).
+
+---
+
 ## Session 2026-05-16 — RomPtr-invalid latent in BufferScrollingTiles_Layer1_VerticalLevel_M1X1
 
 **Captured by:** the new (this session) bucketed off-rails detector
