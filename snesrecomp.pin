@@ -3,7 +3,19 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 0ea19c79bf027a28e05a8a62f5f02fefa54032d9
+sha = 00425c6e5824f113528f0e4bc2ac6bf22573cca4
+# Branch: main. Bumped 2026-06-03 from 7249c61 to land the reference-taint
+# prune convergence fix. _scan_variant_refs now resets `cur` on the
+# un-suffixed `void <name>(CpuState*)` entry-point aliases emit_bank appends
+# after each bank's bodies; previously every alias's forwarding call was
+# attributed to the LAST real variant body in the bank, falsely tainting it,
+# and pruning that body shifted the victim to the next so the prune never
+# reached a fixpoint (the SMW/ALttP regen treadmill). Companion: codegen
+# emits one-line dispatch case/default even with pre_call (keeps the runtime
+# (m,x) switch out of the direct-reference graph); v2_regen gets a fixed
+# 1.5h wall-clock cap + non-convergence backstops + rolling prune snapshots.
+# All 3 games (SMW/ALttP/MMX) regen-converge and build against this commit;
+# user-verified playing correctly. No SMW rebuild required for this bump.
 # Branch: main. Bumped 2026-05-31 from f9f48a5 to land the unified v1.0.2
 # cut: snesrecomp main now carries the MMX-era audio ring-buffer fix
 # (DSP catch-up sample-drop -> 8192 power-of-2 output ring) plus universal
