@@ -12,10 +12,13 @@ function the game runs on the SNES's main CPU is a real generated C
 function in `src/gen/`. **The rest of the SNES is not recompiled** —
 it's hardware. PPU rendering, the APU / SPC700 audio coprocessor, DMA
 and HDMA channels, hardware register I/O, and bank-mapping all run
-through an embedded copy of snes9x's emulator core
-(`snesrecomp/runner/snes9x-core/`). This is the same model other
-static-recomp projects (N64Recomp, etc.) use: recompile the CPU,
-emulate the silicon. If you expected the PPU and APU to be recompiled
+through a C reimplementation of the SNES hardware in
+`snesrecomp/runner/src/snes/` — a [LakeSnes](https://github.com/elzo-d/LakeSnes)-derived
+core (the same emulator family the [snesrev](https://github.com/snesrev)
+reverse-engineered ports use), with individual algorithms credited to
+snes9x. This is the same model other static-recomp projects (N64Recomp,
+snesrev/zelda3, etc.) use: recompile the CPU, emulate the silicon. If
+you expected the PPU and APU to be recompiled
 too, they aren't — and a static recompiler can't recompile them
 because the SNES PPU has no instruction stream and the SPC700 is a
 separate processor with its own firmware that the cartridge uploads
@@ -160,10 +163,37 @@ to drift.)
 - `docs/` — design / debugging notes (internal-facing, may be stale).
 - `third_party/` — vendored deps with their own licenses.
 
+## Acknowledgements
+
+This port did not start from scratch. It stands on prior
+reverse-engineering and emulation work, and we're grateful for it:
+
+- **[IsoFrieze/SMWDisX](https://github.com/IsoFrieze/SMWDisX)** — the
+  Super Mario World disassembly used as the basis for this port. SMWDisX
+  is the source of the symbol names, the RAM/variable map, and the
+  per-bank function boundaries, and it serves as the differential
+  conformance oracle for the recompiled output (see
+  [`tools/smwdisx_compare.py`](tools/smwdisx_compare.py) and the vendored
+  `SMWDisX/` clone). SMWDisX in turn credits mikeyk's original 2013
+  disassembly and loveemu's SPC700 sound-engine work.
+- **[snesrev](https://github.com/snesrev)** (`snesrev/smw`,
+  `snesrev/zelda3`) — the runner and surrounding ecosystem were heavily
+  based on the snesrev reverse-engineered ports: the "port the CPU code
+  to C, emulate the rest of the silicon, verify against a reference
+  emulator" model, the C runtime structure, and the SPC-image audio path.
+- The C SNES hardware core under `snesrecomp/runner/src/snes/` derives
+  from **[LakeSnes](https://github.com/elzo-d/LakeSnes)** (elzo-d), the
+  emulator snesrev's projects vendor, with algorithms credited inline to
+  **snes9x**.
+
+See the [snesrecomp framework](https://github.com/mstan/snesrecomp)
+README for the full framework-side attribution.
+
 ## License
 
-Not yet declared. Code in this repo is original; vendored
-dependencies under `third_party/` retain their own licenses.
+Not yet declared. Code in this repo is original except where noted in
+**Acknowledgements** above; vendored dependencies under `third_party/`
+(and the `SMWDisX/` disassembly clone) retain their own licenses.
 
 The SMW ROM and any data extracted from it are **not** in this
 repo and are not licensed for redistribution.
