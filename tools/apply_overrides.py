@@ -27,44 +27,58 @@ MARKER = "/*WS-OVERRIDE*/"
 # Some widescreen behaviour can't be a whole-function override (the recompiled
 # functions carry CpuState/NLR plumbing). Instead we inject a small gated
 # snippet right after a specific recompiled basic-block anchor. Each patch is
-# anchored on a unique cpu_trace_block(PC) line so it targets exactly one block
-# across all (m,x) variants, and is idempotent via its marker.
+# anchored on a unique generated line so it targets exactly one site per
+# (m,x) variant, and is idempotent via its marker.
 #
-# WS-FLAG: widen SMW's per-sprite horizontal off-screen flag (spr_xoffscreen,
-# $15A0). GetDrawInfo (block $02D38C) normally sets it for screen-x >= 256
-# (high-byte test); sprite routines then PARK the sprite (OAM y=0xF0) instead
-# of drawing it. Re-derive the flag against the widescreen window
-# [-g_ws_extra, 256+g_ws_extra) so margin enemies draw. FinishOAMWrite + the
-# PPU sprite-x wrap place them at the correct extended x. No-op when off.
+# WS-FLAG: widen GetDrawInfo's draw/cull window ONLY. Vanilla GetDrawInfo
+# (banks 01/02/03) culls a sprite when screen-x is outside [-64, 320)
+# (tx = sprX + 0x40 - camX; cull when tx >= 0x180): it stores the cull bool to
+# spr_table15c4 ($15C4) and double-returns so the GFX routine never draws.
+# For widescreen we widen that window to [-(64+g_ws_extra), 256+g_ws_extra):
+# 64 = vanilla's pad for the widest sprites straddling the left edge, mirrored
+# at the widescreen edge; the right bound needs no pad (tiles extend rightward
+# from the origin and the presentation crops them).
+#
+# CRITICAL — do NOT touch spr_xoffscreen ($15A0). It is set earlier in
+# GetDrawInfo to "screen-x not in [0,256)" and it IS the OAM x-high (9th
+# position bit) source: generic draw routines emit
+# `sprites_oamtile_size_buffer[slot+64] = $15A0|2` and FinishOAMWrite
+# recomputes the same predicate from world coords. With vanilla $15A0, margin
+# sprites get x-high=1 and the PPU's widened sprite-x wrap threshold
+# (256+g_ws_extra) presents 9-bit x >= threshold as negative (left margin).
+# A previous revision of this patch forced $15A0=0 inside the widescreen
+# window; that zeroed the x-high bit and made every left-margin sprite
+# (incl. Yoshi) render 256px to the RIGHT — the classic 9-bit wrap teleport.
+#
+# 9-bit representability bounds the widening: left tiles live at 512-(64+extra)
+# .. 511 and must stay >= the wrap threshold 256+extra, so extra < 96. The
+# snippet clamps. No-op when widescreen is off.
 BLOCK_PATCHES = [
     {
         "marker": "/*WS-FLAG*/",
-        # Only inside GetDrawInfo* (it exists in banks 01/02/03; normal sprites
-        # use the bank-01 copy). Anchor on the spr_table15c4 ($15C4) write — the
-        # carry/draw-cull store, present once per variant, right after the
-        # off-screen flag is finalized.
+        # Only inside GetDrawInfo* (banks 01/02/03; normal sprites use the
+        # bank-01 copy). Anchor on the spr_table15c4 ($15C4) write — the
+        # draw-cull store, present once per variant, immediately before the
+        # branch `if (_flag_Z == 0) goto <off-screen double-return>`.
         "func_match": "GetDrawInfo",
         "anchor": "0x15c4 + (uint32)cpu->X",
-        # Injected right after the spr_table15c4 ($15C4) write and BEFORE the
-        # branch `if (_flag_Z == 0) goto <off-screen>`. We recompute the draw
-        # decision against the widescreen window [-g_ws_extra, 256+g_ws_extra)
-        # and set ALL of: _flag_Z (the branch), _flag_C, $15C4 (draw-cull) and
-        # $15A0 (xoffscreen flag) consistently. Keeping the flag window and the
-        # draw/position window identical avoids the 9-bit OAM wrap (a sprite
-        # drawn but never position-computed appeared on the right). FinishOAMWrite
-        # + the PPU sprite-x wrap then place margin sprites correctly. No-op off.
+        # Recompute the draw decision against the widened window and override
+        # the branch flags (_flag_Z: Z=1 means draw, mirroring vanilla's
+        # `AND #1` result of 0) plus the just-stored $15C4 cull bool. A is dead
+        # past this point on both paths (reloaded immediately); $15A0 is left
+        # at its vanilla value on purpose (see header comment).
         "snippet": (
             " /*WS-FLAG*/ { extern bool g_ws_active; extern int g_ws_extra;"
             " if (g_ws_active) {"
             " unsigned int _wk = cpu->X & 0xffffu;"
+            " int _we = g_ws_extra > 95 ? 95 : g_ws_extra;"
             " int _wsx = (int)(short)("
             "(cpu_read8(cpu,0x7E,(unsigned short)(0x00E4+_wk))"
             " | (cpu_read8(cpu,0x7E,(unsigned short)(0x14E0+_wk))<<8))"
             " - (cpu_read8(cpu,0x7E,0x001A) | (cpu_read8(cpu,0x7E,0x001B)<<8)) );"
-            " int _wdraw = (_wsx >= -g_ws_extra && _wsx < 256 + g_ws_extra);"
+            " int _wdraw = (_wsx >= -(64 + _we) && _wsx < 256 + _we);"
             " cpu->_flag_Z = _wdraw ? 1 : 0; cpu->_flag_C = _wdraw ? 0 : 1;"
-            " cpu_write8(cpu,0x7E,(unsigned short)(0x15C4+_wk), _wdraw ? 0 : 1);"
-            " cpu_write8(cpu,0x7E,(unsigned short)(0x15A0+_wk), _wdraw ? 0 : 1); } }"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x15C4+_wk), _wdraw ? 0 : 1); } }"
         ),
     },
 ]
