@@ -3,7 +3,11 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = 8ffc7973498cc7e7fa40b22e8870b7547da837bf
+sha = bf64f0d8983274addaac1f6883a214f6610c157c
+# 2026-06-11 bump (8ffc797 -> bf64f0d): follow-up — port-clock caps now
+# scale with the observed audio-burst quantum (audio_samples is
+# user-tunable; a burst larger than the latency ceiling would have
+# re-collapsed command spacing). No behavior change at the default.
 # 2026-06-11 bump (cbf7fa7 -> 8ffc797): pulls the APU port-write
 # scheduler — the missed-SFX root-cause fix. Runner-only for CODE, but
 # NOTE TWO COMPANION FACTS for anyone rebuilding:
