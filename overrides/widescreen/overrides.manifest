@@ -1,0 +1,17 @@
+# SMW widescreen override manifest — see ../README.md for format.
+#
+#   base_function_name            -> override_symbol            [variant]
+#
+# Candidate targets identified for Layer 2 (kill enemy pop-in at the extended
+# edges). Left commented until each override body in this folder is written and
+# play-tested, because an active rule with no matching override body fails the
+# build. Uncomment a line only once its Override_* function exists.
+#
+# Sprite off-screen horizontal cull (smw_02: distance-from-camera >= 256):
+#   IsOffScreenBnk2               -> Override_IsOffScreenBnk2
+#
+# Level sprite-list spawn window (smw_02 ParseLevelSpriteList scroll-ahead):
+#   ParseLevelSpriteList_Entry2   -> Override_ParseLevelSpriteList_Entry2
+#
+# GetDrawInfo off-screen flag computation (smw_02, the >=256 / 0x180 checks):
+#   GetDrawInfo                   -> Override_GetDrawInfo

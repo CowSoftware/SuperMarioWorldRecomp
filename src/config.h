@@ -50,6 +50,11 @@ typedef struct Config {
   bool autosave;
   bool extend_y;
   bool no_sprite_limits;
+  // Optional widescreen (16:9). Off by default = authentic 256-wide SNES.
+  // Renderer extends the PPU; SMW game-logic widescreen behaviour (spawn
+  // window, off-screen culling, HUD) is supplied by the override layer and
+  // also gated on this flag.
+  bool widescreen;
   bool display_perf_title;
   bool disable_frame_delay;
 

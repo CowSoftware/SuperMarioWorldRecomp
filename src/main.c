@@ -60,7 +60,24 @@ bool g_new_ppu = true;
 
 struct SpcPlayer *g_spc_player;
 
-static uint8_t g_my_pixels[256 * 4 * 240];
+// Sized for the widescreen capacity (256 + 2*kPpuExtraLeftRight). With
+// widescreen off the PPU only writes the leading 256 columns, so this is
+// authentic-identical; the extra capacity is just unused tail.
+static uint8_t g_my_pixels[kPpuBufWidth * 4 * 240];
+
+// Widescreen border, in PPU columns per side (0 = authentic 256-wide).
+// Computed once from config at startup; re-applied to the PPU every frame
+// (ppu_reset zeroes the PPU's copy). g_snes_width = 256 + 2*g_ws_extra.
+// Non-static: the game-logic override layer externs this to widen the sprite
+// spawn/cull window to match the extended view.
+int g_ws_extra = 0;
+
+// Runtime widescreen master switch, read by the game-logic override layer
+// (overrides/widescreen/*.c) and the dispatch prologues apply_overrides.py
+// injects into the generated banks. Canonical definition lives here so the
+// override sources can just `extern bool g_ws_active;` without a mandatory
+// new translation unit. False = authentic SMW behaviour.
+bool g_ws_active = false;
 
 
 enum {
@@ -297,9 +314,13 @@ static SDL_HitTestResult HitTestCallback(SDL_Window *win, const SDL_Point *pt, v
 }
 
 void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
+  // Re-apply the widescreen border every frame: ppu_reset() (soft resets,
+  // load-state) zeroes the PPU's extraLeft/Right, and a no-op when g_ws_extra==0.
+  PpuSetExtraSpace(g_ppu, (uint8_t)g_ws_extra);
   g_rtl_game_info->draw_ppu_frame();
+  size_t row_bytes = (size_t)g_snes_width * 4;
   for (size_t y = 0, y_end = g_snes_height; y < y_end; y++)
-    memcpy((uint8 *)pixel_buffer + y * pitch, g_my_pixels + y * 256 * 4, 256 * 4);
+    memcpy((uint8 *)pixel_buffer + y * pitch, g_my_pixels + y * row_bytes, row_bytes);
 }
 
 static void DrawPpuFrameWithPerf(void) {
@@ -651,6 +672,18 @@ int main(int argc, char** argv) {
   g_gamepad[0].joystick_id = g_gamepad[1].joystick_id = -1;
   g_snes_width = 256;
   g_snes_height = 224;// (g_config.extend_y ? 240 : 224);
+
+  // Widescreen (optional, default off -> authentic 256-wide). Render enough
+  // extra PPU columns that the square-pixel image fills 16:9 at the current
+  // height: width = round(height * 16/9), split evenly into a left/right
+  // border, clamped to the PPU's compiled capacity (kPpuExtraLeftRight/side).
+  if (g_config.widescreen) {
+    int target_w = (g_snes_height * 16 + 4) / 9;   // round to nearest
+    g_ws_extra = IntMin((target_w - 256) / 2, kPpuExtraLeftRight);
+    if (g_ws_extra < 0) g_ws_extra = 0;
+    g_snes_width = 256 + g_ws_extra * 2;
+    g_ws_active = (g_ws_extra > 0);
+  }
   g_ppu_render_flags = g_config.new_renderer * kPpuRenderFlags_NewRenderer |
     g_config.extend_y * kPpuRenderFlags_Height240 |
     g_config.no_sprite_limits * kPpuRenderFlags_NoSpriteLimits;
@@ -788,7 +821,7 @@ error_reading:;
     g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
   }
 
-  PpuBeginDrawing(g_ppu, g_my_pixels, 256 * 4, 0);
+  PpuBeginDrawing(g_ppu, g_my_pixels, (size_t)g_snes_width * 4, 0);
 
   MkDir("saves");
     
