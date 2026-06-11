@@ -2,12 +2,70 @@
 #include "variables.h"
 #include "common_cpu_infra.h"
 #include "snes/snes.h"
+#include "snes/ppu.h"
 #include "cpu_state.h"
 #include "funcs.h"
 #include "debug_server.h"
 #include "cpu_trace.h"
 
+// Widescreen master switch + border half-width (per side), defined in main.c.
+extern bool g_ws_active;
+extern int g_ws_extra;
+
+// Widescreen OAM x-high fixup (opt-in; no-op when widescreen is off).
+//
+// The SNES OAM x is 9-bit: a low byte plus one x-high bit. SMW's general OAM
+// path (FinishOAMWrite) sets the x-high bit for any tile off the 256-wide
+// screen, which — with the PPU's widened sprite-x wrap threshold — places
+// left- and right-margin sprites correctly. But some special sprites (e.g.
+// Yoshi) write OAM x WITHOUT that bit, so in widescreen a sprite whose true
+// screen position is just off the LEFT (negative) instead renders at +low on
+// the wrong (right) side: the classic 9-bit wrap ambiguity (screen-x -20 and
+// +236 share a low byte).
+//
+// The game still holds each sprite's true 16-bit position in its sprite
+// tables, so re-derive the x-high bit from the true sign. We run after OAM DMA
+// has populated g_ppu->oam/highOam and before line rendering, and only ADD the
+// x-high bit to left-margin tiles that are missing it — right-margin tiles
+// (already correct) and on-screen tiles are left untouched. The per-tile
+// reconstruction is self-correcting, so an over-wide tile window is safe.
+static int g_ws_dbg = 0;
+static void WidescreenFixupOamXHigh(void) {
+  if (!g_ws_active)
+    return;
+  uint16 cam = *(uint16 *)(g_ram + 0x1A);  // mirror_current_layer1_xpos
+  FILE *dbg = (g_ws_dbg < 2 && cam > 200) ? fopen("_ws_fixup.log", "a") : NULL;
+  if (dbg) fprintf(dbg, "--- fixup call %d cam=%d ---\n", g_ws_dbg, cam);
+  for (int k = 0; k < 22; k++) {           // sprite slots (main + a margin)
+    if (g_ram[0x14C8 + k] == 0)            // spr_status: skip inactive
+      continue;
+    int origin_sx = (int16)((g_ram[0x00E4 + k] | (g_ram[0x14E0 + k] << 8)) - cam);
+    int base = g_ram[0x15EA + k] >> 2;     // spr_oamindex is a byte offset; /4 -> OAM slot
+    if (dbg) {
+      int s0 = base, low0 = g_ppu->oam[s0 * 2] & 0xFF, y0 = (g_ppu->oam[s0 * 2] >> 8) & 0xFF;
+      int xh0 = (g_ppu->highOam[s0 >> 2] >> ((s0 & 3) * 2)) & 1;
+      fprintf(dbg, "  k=%2d stat=0x%02x sx=%d oamidx=0x%02x slot=%d tile0(low=%d y=%d xhigh=%d)\n",
+              k, g_ram[0x14C8 + k], origin_sx, g_ram[0x15EA + k], base, low0, y0, xh0);
+    }
+    if (origin_sx >= 0)                    // only left-of-screen sprites can wrap to the right
+      continue;
+    for (int t = 0; t < 16; t++) {
+      int slot = base + t;
+      if (slot >= 128)
+        break;
+      int low = g_ppu->oam[slot * 2] & 0xFF;
+      // Reconstruct this tile's true screen-x near the sprite origin.
+      int tile_sx = origin_sx + (int8)(low - (origin_sx & 0xFF));
+      if (tile_sx < 0 && tile_sx >= -g_ws_extra)
+        g_ppu->highOam[slot >> 2] |= (uint8)(1 << ((slot & 3) * 2));  // set x-high
+    }
+  }
+  if (dbg) { fclose(dbg); g_ws_dbg++; }
+}
+
 void SmwDrawPpuFrame(void) {
+  WidescreenFixupOamXHigh();
+
   SimpleHdma hdma_chans[3];
 
   Dma *dma = g_dma;

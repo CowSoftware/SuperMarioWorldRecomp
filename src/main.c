@@ -689,6 +689,12 @@ int main(int argc, char** argv) {
   // extra PPU columns that the square-pixel image fills 16:9 at the current
   // height: width = round(height * 16/9), split evenly into a left/right
   // border, clamped to the PPU's compiled capacity (kPpuExtraLeftRight/side).
+  // Env var SNESRECOMP_WIDESCREEN overrides config (1/0) for quick toggling.
+  {
+    const char *ws_env = getenv("SNESRECOMP_WIDESCREEN");
+    if (ws_env && *ws_env)
+      g_config.widescreen = (atoi(ws_env) != 0);
+  }
   if (g_config.widescreen) {
     int target_w = (g_snes_height * 16 + 4) / 9;   // round to nearest
     g_ws_extra = IntMin((target_w - 256) / 2, kPpuExtraLeftRight);
