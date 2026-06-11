@@ -3,7 +3,31 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = cbf7fa72f16126c5577f42335d6f849341af7d5e
+sha = 8ffc7973498cc7e7fa40b22e8870b7547da837bf
+# 2026-06-11 bump (cbf7fa7 -> 8ffc797): pulls the APU port-write
+# scheduler — the missed-SFX root-cause fix. Runner-only for CODE, but
+# NOTE TWO COMPANION FACTS for anyone rebuilding:
+#  - The v2 emitter now names its outputs src/gen/bank*_v2.c +
+#    dispatch_v2.c (was smw_*_v2.c). This SMW commit renames the
+#    vcxproj references and regen.sh accordingly; regenerate (or rename
+#    your local gitignored src/gen files) before building. Gen CONTENT
+#    at this pin is byte-identical to the previous build — verified by
+#    full regen + cmp during the SFX investigation.
+#  - tools/regen.sh now exits non-zero at the framework's stub lint:
+#    SMW's 41 long-standing loud-trapped debt markers (8 unresolved
+#    indirect-dispatch sites and friends, all verified 0-fire) now
+#    hard-fail the gate. The banks ARE fully emitted before the gate
+#    fires. Closing those sites is a separate recompiler campaign.
+# The fix itself: CPU APU-port writes are scheduled in APU-sample time
+# (write-clock targets, queue drained in apu_cycle) instead of mutating
+# inPorts at wall time. Root cause was the 60.0988 Hz NMI beating
+# against the 60.00 Hz audio-callback SPC bursts: when phases crossed,
+# a sound command lived ~9 samples of APU time (engine polls every 64)
+# and was silently dropped — seconds-long alternating runs of missed
+# SFX. Always-on port-traffic rings (audio_events filter=2) + per-port
+# cpu_port_overwrites counters land with it; tools/sfx_probe.py
+# classifies every command SEEN/SEEN-NOKON/LOST. User-verified: 100%
+# audio success across two full runs post-fix.
 # 2026-06-11 bump (2b135e8 -> cbf7fa7): pulls the widescreen runner
 # support, runner-only (src/gen untouched, no regen required). All
 # changes are runtime-gated and inert unless the game opts in:

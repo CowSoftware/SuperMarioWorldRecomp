@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -172,17 +172,17 @@
     <ClCompile Include="platform\win32\volume_control.c" />
     <ClCompile Include="smw_00.c" />
     <ClCompile Include="gen_stubs.c" />
-    <ClCompile Include="gen\smw_00_v2.c" />
-    <ClCompile Include="gen\smw_04_v2.c" />
-    <ClCompile Include="gen\smw_07_v2.c" />
-    <ClCompile Include="gen\smw_01_v2.c" />
-    <ClCompile Include="gen\smw_02_v2.c" />
-    <ClCompile Include="gen\smw_03_v2.c" />
-    <ClCompile Include="gen\smw_05_v2.c" />
-    <ClCompile Include="gen\smw_0c_v2.c" />
-    <ClCompile Include="gen\smw_0d_v2.c" />
+    <ClCompile Include="gen\bank00_v2.c" />
+    <ClCompile Include="gen\bank04_v2.c" />
+    <ClCompile Include="gen\bank07_v2.c" />
+    <ClCompile Include="gen\bank01_v2.c" />
+    <ClCompile Include="gen\bank02_v2.c" />
+    <ClCompile Include="gen\bank03_v2.c" />
+    <ClCompile Include="gen\bank05_v2.c" />
+    <ClCompile Include="gen\bank0c_v2.c" />
+    <ClCompile Include="gen\bank0d_v2.c" />
     <ClCompile Include="gen\unresolved_stubs_v2.c" />
-    <ClCompile Include="gen\smw_dispatch_v2.c" />
+    <ClCompile Include="gen\dispatch_v2.c" />
     <ClCompile Include="..\snesrecomp\runner\src\debug_server.c" />
     <ClCompile Include="smw_cpu_infra.c" />
     <ClCompile Include="smw_rtl.c" />

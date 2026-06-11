@@ -75,7 +75,7 @@ if [ "$STRICT_IDEMPOTENT" -eq 1 ]; then
       --cfg-dir recomp --out-dir "$TMP_GEN"
   drift_count=0
   for b in "${BANKS[@]}"; do
-    if ! diff -q "src/gen/smw_${b}_v2.c" "$TMP_GEN/smw_${b}_v2.c" \
+    if ! diff -q "src/gen/bank${b}_v2.c" "$TMP_GEN/bank${b}_v2.c" \
             > /dev/null 2>&1; then
       echo "  DRIFT: bank $b" >&2
       drift_count=$((drift_count + 1))
