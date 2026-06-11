@@ -23,6 +23,76 @@ import sys
 
 MARKER = "/*WS-OVERRIDE*/"
 
+# --- Block-level widescreen patches (runtime-gated, default-off) ---------
+# Some widescreen behaviour can't be a whole-function override (the recompiled
+# functions carry CpuState/NLR plumbing). Instead we inject a small gated
+# snippet right after a specific recompiled basic-block anchor. Each patch is
+# anchored on a unique cpu_trace_block(PC) line so it targets exactly one block
+# across all (m,x) variants, and is idempotent via its marker.
+#
+# WS-FLAG: widen SMW's per-sprite horizontal off-screen flag (spr_xoffscreen,
+# $15A0). GetDrawInfo (block $02D38C) normally sets it for screen-x >= 256
+# (high-byte test); sprite routines then PARK the sprite (OAM y=0xF0) instead
+# of drawing it. Re-derive the flag against the widescreen window
+# [-g_ws_extra, 256+g_ws_extra) so margin enemies draw. FinishOAMWrite + the
+# PPU sprite-x wrap place them at the correct extended x. No-op when off.
+BLOCK_PATCHES = [
+    {
+        "marker": "/*WS-FLAG*/",
+        # Only inside GetDrawInfo* (it exists in banks 01/02/03; normal sprites
+        # use the bank-01 copy). Anchor on the spr_table15c4 ($15C4) write — the
+        # carry/draw-cull store, present once per variant, right after the
+        # off-screen flag is finalized.
+        "func_match": "GetDrawInfo",
+        "anchor": "0x15c4 + (uint32)cpu->X",
+        # Injected right after the spr_table15c4 ($15C4) write and BEFORE the
+        # branch `if (_flag_Z == 0) goto <off-screen>`. We recompute the draw
+        # decision against the widescreen window [-g_ws_extra, 256+g_ws_extra)
+        # and set ALL of: _flag_Z (the branch), _flag_C, $15C4 (draw-cull) and
+        # $15A0 (xoffscreen flag) consistently. Keeping the flag window and the
+        # draw/position window identical avoids the 9-bit OAM wrap (a sprite
+        # drawn but never position-computed appeared on the right). FinishOAMWrite
+        # + the PPU sprite-x wrap then place margin sprites correctly. No-op off.
+        "snippet": (
+            " /*WS-FLAG*/ { extern bool g_ws_active; extern int g_ws_extra;"
+            " if (g_ws_active) {"
+            " unsigned int _wk = cpu->X & 0xffffu;"
+            " int _wsx = (int)(short)("
+            "(cpu_read8(cpu,0x7E,(unsigned short)(0x00E4+_wk))"
+            " | (cpu_read8(cpu,0x7E,(unsigned short)(0x14E0+_wk))<<8))"
+            " - (cpu_read8(cpu,0x7E,0x001A) | (cpu_read8(cpu,0x7E,0x001B)<<8)) );"
+            " int _wdraw = (_wsx >= -g_ws_extra && _wsx < 256 + g_ws_extra);"
+            " cpu->_flag_Z = _wdraw ? 1 : 0; cpu->_flag_C = _wdraw ? 0 : 1;"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x15C4+_wk), _wdraw ? 0 : 1);"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x15A0+_wk), _wdraw ? 0 : 1); } }"
+        ),
+    },
+]
+
+# Recognize a generated function definition header to scope block patches.
+_FUNC_HDR = re.compile(r"^RecompReturn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*CpuState")
+
+
+def apply_block_patches(text):
+    """Apply BLOCK_PATCHES to one file's text, function-scoped. Returns (text, n)."""
+    n = 0
+    for p in BLOCK_PATCHES:
+        if p["anchor"] not in text:
+            continue
+        out = []
+        cur_func = None
+        for line in text.splitlines(keepends=True):
+            mh = _FUNC_HDR.match(line)
+            if mh:
+                cur_func = mh.group(1)
+            if (p["anchor"] in line and p["marker"] not in line
+                    and cur_func and p["func_match"] in cur_func):
+                line = line.rstrip("\n") + p["snippet"] + "\n"
+                n += 1
+            out.append(line)
+        text = "".join(out)
+    return text, n
+
 # Matches a generated function DEFINITION (opening brace), not a forward
 # declaration (which ends in ';'). Captures the base name and the _M?X? suffix.
 #   RecompReturn  SomeName_M1X1 ( CpuState *cpu ) {
@@ -109,7 +179,7 @@ def main():
     args = ap.parse_args()
 
     rules = parse_manifest(args.manifest)
-    if not rules:
+    if not rules and not BLOCK_PATCHES:
         if args.verbose:
             print("apply_overrides: no active rules — authentic build, no-op")
         return 0
@@ -130,12 +200,13 @@ def main():
             if m.group(1) in {b for b, _, _ in rules}:
                 matched_bases.add(m.group(1))
         new_text, n = apply_to_text(text, rules)
-        if n:
+        new_text, nb = apply_block_patches(new_text)
+        if n or nb:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(new_text)
-            total += n
+            total += n + nb
             if args.verbose:
-                print(f"apply_overrides: {name}: injected {n}")
+                print(f"apply_overrides: {name}: injected {n} prologue(s), {nb} block patch(es)")
 
     if args.check:
         missing = {b for b, _, _ in rules} - matched_bases
