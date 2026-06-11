@@ -58,6 +58,15 @@ function Set-GenState([string]$kind) {
   if ($count -ne $expected) {
     throw "gen marker count $count != expected $expected for $kind build"
   }
+  # Force recompilation of every gen TU. MSBuild is timestamp-based and the
+  # gen state changes by CONTENT: a no-op restore (already-clean gen, e.g.
+  # freshly copied with Copy-Item's preserved old timestamps) leaves .c
+  # files older than .obj files compiled from the OTHER state, and the
+  # build silently links stale objects (observed: the standard zip shipped
+  # the widescreen exe).
+  Get-ChildItem (Join-Path $root 'src\gen\*.c') | ForEach-Object {
+    $_.LastWriteTime = Get-Date
+  }
   Write-Host "gen state: $kind ($count injection markers)"
 }
 
