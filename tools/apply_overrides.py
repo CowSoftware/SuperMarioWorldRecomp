@@ -54,6 +54,15 @@ MARKER = "/*WS-OVERRIDE*/"
 # .. 511 and must stay >= the wrap threshold 256+extra, so extra < 96. The
 # snippet clamps. No-op when widescreen is off.
 #
+# ALL game-logic snippets are additionally gated on game mode $0100 == 0x14
+# (player-controlled level main), mirroring the presentation's pillarbox
+# gate in main.c. The title attract demo runs the level engine under game
+# mode 0x07 with scripted inputs; widened spawn timing changes sprite slot
+# allocation and desyncs the recorded choreography (user-observed: Yoshi's
+# stomp missing the sliding koopa). Under mode 0x07 the presentation is
+# pillarboxed anyway (PpuSetExtraSpaceCentered zeroes the PPU margins), so
+# vanilla simulation + vanilla view stay paired.
+#
 # WS-DESPAWN: widen SubOffscreen's horizontal erase bounds by g_ws_extra.
 # Each bank (01/02/03) carries its own copy of SubOffscreen with its own
 # bounds tables (contents differ per bank!). The horizontal decision joins
@@ -106,7 +115,7 @@ def _ws_despawn_patch(anchor_pc, tbl_lo):
         "anchor": "cpu_trace_block(cpu, 0x%06X)" % anchor_pc,
         "snippet": (
             " /*WS-DESPAWN*/ { extern bool g_ws_active; extern int g_ws_extra;"
-            " if (g_ws_active) {"
+            " if (g_ws_active && cpu_read8(cpu,0x7E,0x0100) == 0x14) {"
             " unsigned int _wk = cpu->X & 0xffffu; unsigned int _wy = cpu->Y & 7u;"
             " int _wb = (int)(short)(unsigned short)("
             "cpu_read8(cpu,cpu->DB,(unsigned short)(0x%04Xu+_wy))"
@@ -139,7 +148,7 @@ BLOCK_PATCHES = [
         # at its vanilla value on purpose (see header comment).
         "snippet": (
             " /*WS-FLAG*/ { extern bool g_ws_active; extern int g_ws_extra;"
-            " if (g_ws_active) {"
+            " if (g_ws_active && cpu_read8(cpu,0x7E,0x0100) == 0x14) {"
             " unsigned int _wk = cpu->X & 0xffffu;"
             " int _we = g_ws_extra > 95 ? 95 : g_ws_extra;"
             " int _wsx = (int)(short)("
@@ -162,7 +171,8 @@ BLOCK_PATCHES = [
         "anchor": "cpu_trace_block(cpu, 0x02A828)",
         "snippet": (
             " /*WS-SPAWN*/ { extern bool g_ws_active; extern int g_ws_extra;"
-            " if (g_ws_active && !(cpu_read8(cpu,0x7E,0x005B) & 1)) {"
+            " if (g_ws_active && cpu_read8(cpu,0x7E,0x0100) == 0x14"
+            " && !(cpu_read8(cpu,0x7E,0x005B) & 1)) {"
             " unsigned int _wd = cpu_read8(cpu,0x7E,0x0055);"
             " if (_wd == 0 || _wd == 2) {"
             " int _wcol = (cpu_read8(cpu,0x7E,0x001A) | (cpu_read8(cpu,0x7E,0x001B)<<8))"
