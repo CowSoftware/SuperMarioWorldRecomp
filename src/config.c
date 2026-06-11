@@ -348,6 +348,8 @@ static bool HandleIniConfig(int section, const char *key, char *value) {
       return ParseBool(value, &g_config.no_sprite_limits);
     } else if (StringEqualsNoCase(key, "Widescreen")) {
       return ParseBool(value, &g_config.widescreen);
+    } else if (StringEqualsNoCase(key, "WidescreenHud")) {
+      return ParseBool(value, &g_config.widescreen_hud);
     } else if (StringEqualsNoCase(key, "Shader")) {
       g_config.shader = *value ? value : NULL;
       return true;
@@ -434,6 +436,9 @@ void ParseConfigFile(const char *filename) {
    * = false` in config.ini overrides this. */
   g_config.enable_gamepad[0] = true;
   g_config.enable_gamepad[1] = true;
+  /* HUD-to-the-edges defaults on; inert unless Widescreen is also on.
+   * `WidescreenHud = 0` keeps the authentic centered status bar. */
+  g_config.widescreen_hud = true;
 
   /* The config is config.ini next to the exe (cwd is anchored there
    * by main), or whatever --config said. No alternate names, no

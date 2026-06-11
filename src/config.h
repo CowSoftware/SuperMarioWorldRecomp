@@ -55,6 +55,11 @@ typedef struct Config {
   // window, off-screen culling, HUD) is supplied by the override layer and
   // also gated on this flag.
   bool widescreen;
+  // Split the status bar to the widescreen edges (lives cluster left,
+  // TIME/coins/score right, item box centered). Defaults on; only takes
+  // effect with widescreen active. `WidescreenHud = 0` keeps the
+  // authentic centered HUD.
+  bool widescreen_hud;
   bool display_perf_title;
   bool disable_frame_delay;
 
