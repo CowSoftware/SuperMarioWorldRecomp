@@ -314,11 +314,23 @@ static SDL_HitTestResult HitTestCallback(SDL_Window *win, const SDL_Point *pt, v
 }
 
 void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
-  // Re-apply the widescreen border every frame: ppu_reset() (soft resets,
-  // load-state) zeroes the PPU's extraLeft/Right, and a no-op when g_ws_extra==0.
-  PpuSetExtraSpace(g_ppu, (uint8_t)g_ws_extra);
-  g_rtl_game_info->draw_ppu_frame();
+  // Re-apply the widescreen border every frame (ppu_reset zeroes the PPU's
+  // copy on soft reset / load-state). Bounded screens — overworld, title,
+  // menus, transitions — have no valid BG past the authentic 256-wide view,
+  // so the border would show garbage. Restrict the widescreen border to actual
+  // in-level gameplay (misc_game_mode == 0x14) and pillarbox everything else.
   size_t row_bytes = (size_t)g_snes_width * 4;
+  if (g_ws_extra > 0) {
+    bool in_level = (g_ram[0x100] == 0x14);  // misc_game_mode: level main routine
+    if (in_level) {
+      PpuSetExtraSpace(g_ppu, (uint8_t)g_ws_extra);
+    } else {
+      // Center the authentic 256 view and black out the side margins.
+      PpuSetExtraSpaceCentered(g_ppu, (uint8_t)g_ws_extra);
+      memset(g_my_pixels, 0, row_bytes * g_snes_height);
+    }
+  }
+  g_rtl_game_info->draw_ppu_frame();
   for (size_t y = 0, y_end = g_snes_height; y < y_end; y++)
     memcpy((uint8 *)pixel_buffer + y * pitch, g_my_pixels + y * row_bytes, row_bytes);
 }
