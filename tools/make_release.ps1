@@ -10,7 +10,7 @@ smw.exe is useless without SDL2.dll):
 
   widescreen  SuperMarioWorldRecomp-widescreen-windows-x64.zip
               apply_overrides.py gen (WS-FLAG / WS-DESPAWN / WS-SPAWN /
-              WS-CHAIN / WS-SLOT block
+              WS-CHAIN / WS-SLOT / WS-RELOC / WS-WING block
               patches), config Widescreen = 1. The widescreen machinery is
               runtime-gated, but the standard zip is built from gen that
               never contained it at all — the defensible split.
@@ -29,7 +29,7 @@ param(
   [ValidateSet('standard', 'widescreen', 'both')]
   [string]$Variant = 'both',
   [string]$MSBuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe',
-  [int]$ExpectedInjections = 71
+  [int]$ExpectedInjections = 91
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -39,7 +39,7 @@ New-Item -ItemType Directory -Force $out | Out-Null
 
 function Get-MarkerCount {
   $hits = Select-String -Path (Join-Path $root 'src\gen\*.c') `
-      -Pattern '/\*WS-(OVERRIDE|FLAG|DESPAWN|SPAWN|CHAIN|SLOT)\*/' -AllMatches
+      -Pattern '/\*WS-(OVERRIDE|FLAG|DESPAWN|SPAWN|CHAIN|SLOT|RELOC|WING)\*/' -AllMatches
   $sum = ($hits | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum
   if ($null -eq $sum) { return 0 } else { return [int]$sum }
 }

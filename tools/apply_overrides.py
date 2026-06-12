@@ -135,6 +135,32 @@ MARKER = "/*WS-OVERRIDE*/"
 # extra=71) left of its origin. The chained platform (0xA8 left) is the
 # sole outlier — hence this patch completes the class.
 #
+# 3. OAM-region wrap (the WS-SLOT consequence): the platform draws 10
+#    tiles with an 8-BIT OAM index (INY x4 from SpriteOAMIndex). The
+#    two vanilla reserved slots get 10-tile regions (bases 0x30/0x58
+#    rel $0300), but WS-SLOT's third slot (slot 5) keeps the normal
+#    5-tile region at base 0xE4 — the last 3 tiles (the three LEFT
+#    platform log tiles, written at wrapped Y=0x00/0x04/0x08) land in
+#    $0300-$030B, the PLAYER's reserved OAM region. PlayerDraw sweeps
+#    attr bytes there each frame with the player page (0x60); the
+#    platform's log tile $60 on page 0 IS the smoke-puff tile, so the
+#    last-writer race renders a CLOUD at the leftmost log tile
+#    whenever Mario rides (riding makes the platform re-call
+#    DrawMarioAndYoshi after its tile writes, flipping the race).
+#    OAM is fully allocated under header $01 — no contiguous 40-byte
+#    region exists, and all three platforms can have visible pixels
+#    simultaneously in widescreen (span 432px vs 398px view), so the
+#    third platform cannot simply hide. Fix: the WS-RELOC patch below
+#    relocates the wrapped tile that lands on an attr-swept player
+#    entry and parks the stomped bytes, every frame, after the draw.
+#    The alias-park (defect 2) moved into the same WS-RELOC loop: it
+#    now runs on SpriteLock frames too (the old host block $01C9EC is
+#    skipped under lock while the draw is not), and it parks at
+#    wrap-aware addresses — the previous unwrapped park loop wrote y
+#    bytes into the PACKED OAM high table at $0400-$041F for slot-5
+#    platforms. WS-CHAIN itself keeps only the interaction-window
+#    widening and flag override at the $15C4 store.
+#
 # WS-SLOT: give the chained platform ($5F) a third reserved sprite slot
 # in widescreen. Sprite-memory settings with ReservedSprite1 == $5F
 # (header $01/$11) confine $5F to a reserved slot range; the allocation
@@ -155,6 +181,30 @@ MARKER = "/*WS-OVERRIDE*/"
 # Slot 5 is the top of the normal-sprite range (normals fill 5 down to
 # 0), so it is only contended when five+ normal sprites are live.
 # Gated like every WS patch; vanilla allocation is untouched when off.
+#
+# WS-WING: the para-koopa wing tile (KoopaWingGfxRt, $019E28) is drawn
+# AFTER its body's FinishOAMWrite pass and carries its own hard cull:
+# after storing the wing's 8-bit screen-x it tests the 16-bit high byte
+# of (wing world-x - camera) and skips y/tile/attr/size unless the wing
+# is in [0, 256) — a private 4:3 window. In widescreen the koopa body
+# (GetDrawInfo + WS-FLAG) renders across the full view while its wings
+# pop in/out at the vanilla screen edge (user-observed on the green
+# bouncing paratroopa). The other wing sub-draw, GoombaWingGfxRt, needs
+# NO patch: it ends with its own FinishOAMWriteRt call (A=#$02,Y=#$FF)
+# which recomputes per-tile x-high from world coords — already correct
+# in the margins.
+#
+# Fix: at the entry of the wing draw block ($019E3C), when the wing's
+# true screen-x lies in a visible margin ([-extra, 0) or
+# [256, 256+extra)) — where vanilla will skip — write the y/tile/attr
+# ourselves (same 8-bit math and ROM constants as the vanilla path:
+# disp tables at $019E10-$019E27) and the size byte with the x-high
+# bit SET (vanilla never sets it because in its [0,256) window x-high
+# is always 0; in the margins the 9-bit reconstruction against the
+# widened wrap threshold needs bit 8 = 1 on both sides). Vanilla then
+# stores the x low byte itself (that store is unconditional) and its
+# own branch skips the rest, so there is no double-write; the
+# in-window path is untouched.
 #
 # WS-SPAWN: widen ParseLevelSpriteList's spawn trigger so sprites spawn
 # beyond the visible widescreen margin instead of materializing inside
@@ -279,13 +329,74 @@ BLOCK_PATCHES = [
             " | cpu_read8(cpu,0x7E,(unsigned short)(cpu->D + 0x009d)));"
             " cpu_write8(cpu,0x7E,(unsigned short)(0x15C4 + (cpu->X & 0xffffu)), _wval);"
             " cpu_write_a_m(cpu, (uint16)_wval);"
-            " cpu->_flag_Z = (_wval == 0) ? 1 : 0; cpu->_flag_N = 0;"
+            " cpu->_flag_Z = (_wval == 0) ? 1 : 0; cpu->_flag_N = 0; } }"
+        ),
+    },
+    {
+        "marker": "/*WS-RELOC*/",
+        # The chained platform's post-draw block (see WS-CHAIN header
+        # comment, defects 2 and 3): $01C9A1 = `LDX CurSpriteProcess`
+        # right after the 10-tile xhigh/cull loop, runs every frame the
+        # platform is alive INCLUDING SpriteLock frames (message boxes,
+        # death animation) where the $01C9EC interaction block — the old
+        # park-loop host — is skipped. Unscoped like WS-DESPAWN: every
+        # emitted copy of the block is the platform draw body.
+        # Registers are not yet repurposed here, so everything is read
+        # from WRAM ($15E9 = sprite slot).
+        #
+        # Two jobs, one loop over the 10 logical tiles:
+        # - alias-park (moved from WS-CHAIN): when any tile could 9-bit
+        #   alias into a visible margin from the far side, park all 10
+        #   (at their FINAL locations, scraps included).
+        # - wrap relocation: tiles whose byte index passed 0xFF landed in
+        #   the sprite OAM region's first entries. Targets 0x00/0x04
+        #   (entries 64/65) are free in mode-0x14 gameplay (PlayerDraw's
+        #   attr sweep covers entries 66-72 + 126 only — verified via
+        #   the WRAM-write ring), so those tiles stay put (_wd == _wo).
+        #   The leftmost log tile (entry 66, byte 0x08) IS attr-swept —
+        #   the user-visible cloud — and relocates to entry 73 (byte
+        #   0x24, between the player set and reserved slots 10/11; its
+        #   extras byte $0469 is equally unowned). Sources are parked
+        #   after copying so no platform garbage stays where PlayerDraw
+        #   expects to own the bytes. Stale-scrap safety: while the
+        #   wrapping platform is alive it rewrites or parks the scraps
+        #   every frame; it can only stop (despawn) out of view, where
+        #   the scraps' last screen-relative x is off-margin forever.
+        "func_match": "",
+        "anchor": "cpu_trace_block(cpu, 0x01C9A1)",
+        "snippet": (
+            " /*WS-RELOC*/ { extern bool g_ws_active; extern int g_ws_extra;"
+            " if (g_ws_active && cpu_read8(cpu,0x7E,0x0100) == 0x14) {"
+            " int _we = g_ws_extra > 95 ? 95 : g_ws_extra;"
+            " int _wcam = cpu_read8(cpu,0x7E,0x001A) | (cpu_read8(cpu,0x7E,0x001B)<<8);"
+            " int _wplat = (int)(short)(unsigned short)((unsigned int)("
+            "(cpu_read8(cpu,0x7E,0x14B8) | (cpu_read8(cpu,0x7E,0x14B9)<<8)) - _wcam) & 0xFFFFu);"
+            " int _wctr = (int)(short)(unsigned short)((unsigned int)("
+            "(cpu_read8(cpu,0x7E,0x14B0) | (cpu_read8(cpu,0x7E,0x14B1)<<8)) - _wcam) & 0xFFFFu);"
             " int _wlo = (_wplat < _wctr ? _wplat : _wctr) - 0x28;"
             " int _whi = (_wplat > _wctr ? _wplat : _wctr) + 0x18 + 15;"
-            " if (_wlo < _we - 256 || _whi >= 512 - _we) {"
-            " unsigned int _woi = cpu_read8(cpu,0x7E,(unsigned short)(0x15EA + (cpu->X & 0xffffu)));"
-            " for (int _wk = 0; _wk < 10; _wk++)"
-            " cpu_write8(cpu,0x7E,(unsigned short)(0x0301u + _woi + _wk*4u), 0xF0); } } }"
+            " int _walias = (_wlo < _we - 256 || _whi >= 512 - _we);"
+            " unsigned int _wspr = cpu_read8(cpu,0x7E,0x15E9);"
+            " unsigned int _woi = cpu_read8(cpu,0x7E,(unsigned short)(0x15EA + _wspr));"
+            " static const unsigned char _wsc[3] = {0x00, 0x04, 0x24};"
+            " int _wj = 0;"
+            " for (int _wk = 0; _wk < 10; _wk++) {"
+            " unsigned int _wraw = _woi + (unsigned int)_wk*4u;"
+            " unsigned int _wo = _wraw & 0xFFu;"
+            " if (_wraw > 0xFFu) {"
+            " unsigned int _wd = (_wj < 3) ? _wsc[_wj++] : _wo;"
+            " if (_walias) {"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0301u + _wd), 0xF0);"
+            " if (_wd != _wo) cpu_write8(cpu,0x7E,(unsigned short)(0x0301u + _wo), 0xF0);"
+            " } else if (_wd != _wo) {"
+            " for (int _wb = 0; _wb < 4; _wb++)"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0300u + _wd + (unsigned int)_wb),"
+            " cpu_read8(cpu,0x7E,(unsigned short)(0x0300u + _wo + (unsigned int)_wb)));"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0460u + (_wd >> 2)),"
+            " cpu_read8(cpu,0x7E,(unsigned short)(0x0460u + (_wo >> 2))));"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0301u + _wo), 0xF0); }"
+            " } else if (_walias) {"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0301u + _wo), 0xF0); } } } }"
         ),
     },
     # WS-DESPAWN (see header comment): one entry per bank copy.
@@ -305,6 +416,51 @@ BLOCK_PATCHES = [
             " && cpu_read8(cpu,0x7E,(unsigned short)(cpu->D + 0x0005)) == 0x5F"
             " && cpu_read8(cpu,0x7E,(unsigned short)(cpu->D + 0x0006)) == 0x05) {"
             " cpu_write8(cpu,0x7E,(unsigned short)(cpu->D + 0x0006), 0x04); } }"
+        ),
+    },
+    {
+        "marker": "/*WS-WING*/",
+        # KoopaWingGfxRt only (see header comment). Anchor on the entry
+        # of block $019E3C — after the vertical-offscreen early return,
+        # before vanilla's x store and its 16-bit high-byte cull. At
+        # block entry X is still the sprite slot and nothing has been
+        # repurposed, so the wing's table index is reconstructed exactly
+        # the way the block itself does ($157C,x << 1 + frame in DP $02)
+        # and the OAM index comes from $15EA,x. The snippet only writes
+        # the bytes vanilla skips in the margins (y/tile/attr + size with
+        # x-high); registers, flags and stack are untouched, so vanilla's
+        # in-window path and its own skip both proceed unchanged (no
+        # double-write: the margin makes vanilla's Z test fail).
+        # Unscoped: every emitted copy of the block is the wing body
+        # (12 copies across the DrawWingTiles_* entry/variant functions).
+        "func_match": "",
+        "anchor": "cpu_trace_block(cpu, 0x019E3C)",
+        "snippet": (
+            " /*WS-WING*/ { extern bool g_ws_active; extern int g_ws_extra;"
+            " if (g_ws_active && cpu_read8(cpu,0x7E,0x0100) == 0x14) {"
+            " int _we = g_ws_extra > 95 ? 95 : g_ws_extra;"
+            " static const signed char _wdx[4] = {-1, -9, 9, 9};"
+            " static const unsigned char _wdy[4] = {0xFC, 0xF4, 0xFC, 0xF4};"
+            " static const unsigned char _wtl[4] = {0x5D, 0xC6, 0x5D, 0xC6};"
+            " static const unsigned char _wpr[4] = {0x46, 0x46, 0x06, 0x06};"
+            " static const unsigned char _wsz[4] = {0x00, 0x02, 0x00, 0x02};"
+            " unsigned int _wspr = cpu->X & 0xFFu;"
+            " unsigned int _wi = (unsigned int)(((cpu_read8(cpu,0x7E,(unsigned short)(0x157C+_wspr)) << 1)"
+            " + cpu_read8(cpu,0x7E,(unsigned short)(cpu->D + 0x0002))) & 3u);"
+            " int _wwx = (cpu_read8(cpu,0x7E,(unsigned short)(0x00E4+_wspr))"
+            " | (cpu_read8(cpu,0x7E,(unsigned short)(0x14E0+_wspr))<<8)) + _wdx[_wi];"
+            " int _wsx = (int)(short)(unsigned short)((unsigned int)(_wwx"
+            " - (cpu_read8(cpu,0x7E,0x001A) | (cpu_read8(cpu,0x7E,0x001B)<<8))) & 0xFFFFu);"
+            " if ((_wsx >= -_we && _wsx < 0) || (_wsx >= 256 && _wsx < 256 + _we)) {"
+            " unsigned int _wo = cpu_read8(cpu,0x7E,(unsigned short)(0x15EA+_wspr));"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0301u+_wo), (unsigned char)("
+            " cpu_read8(cpu,0x7E,(unsigned short)(0x00D8+_wspr))"
+            " - cpu_read8(cpu,0x7E,0x001C) + _wdy[_wi]));"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0302u+_wo), _wtl[_wi]);"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0303u+_wo), (unsigned char)("
+            " cpu_read8(cpu,0x7E,(unsigned short)(cpu->D + 0x0064)) | _wpr[_wi]));"
+            " cpu_write8(cpu,0x7E,(unsigned short)(0x0460u+(_wo>>2)),"
+            " (unsigned char)(_wsz[_wi] | 0x01)); } } }"
         ),
     },
     # WS-SPAWN (see header comment): bank-02 ParseLevelSpriteList only.
@@ -335,7 +491,7 @@ BLOCK_PATCHES = [
 
 # Every marker any injection mode can leave behind (prologues + block patches).
 ALL_MARKERS = (MARKER, "/*WS-FLAG*/", "/*WS-DESPAWN*/", "/*WS-SPAWN*/",
-               "/*WS-CHAIN*/", "/*WS-SLOT*/")
+               "/*WS-CHAIN*/", "/*WS-SLOT*/", "/*WS-RELOC*/", "/*WS-WING*/")
 
 
 def strip_injections(text):

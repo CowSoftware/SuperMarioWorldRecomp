@@ -20,6 +20,65 @@ trace → framework fix.
 
 ---
 
+## Session 2026-06-12 (third, Fable) — `$5F` slot-5 OAM wrap ("cloud on platform") + paratroopa wing pop: FIXED (WS-RELOC + WS-WING)
+
+**Status: FIXED, user-verified live.** Two new override-layer patches
+(`tools/apply_overrides.py`, 91 total injections now; release script
+expectation bumped 71→91, marker regex extended).
+
+### Bug A — leftmost platform tile becomes a smoke cloud while Mario rides
+
+WS-SLOT's third reserved slot (slot 5) was correct at the allocation
+level but incomplete at the OAM level. Sprite-memory header `$01`
+gives slots 6/7 ten-tile OAM regions (bases 0x30/0x58 rel `$0300`)
+sized for `$5F`'s 10-tile draw; slot 5 keeps the normal 5-tile region
+at base 0xE4, two entries from the end of the buffer. The platform
+draws with an **8-bit OAM index** (`INY`×4), so its last three tiles —
+the three *left* platform log tiles — wrap to bytes `$0300-$030B`,
+inside the player's reserved region. `PlayerDraw` sweeps the attr
+bytes of its entries (66-72 + 126, ring-verified) with the player
+page (0x60) every frame; platform log tile `$60` on page 0 is the
+smoke-puff tile, so on entry 66 the last-writer race renders a cloud
+at the leftmost log tile. Riding flips the race because the platform
+re-calls `DrawMarioAndYoshi` *after* its tile writes (user-confirmed:
+cloud on contact, gone airborne). Three platforms can have visible
+pixels simultaneously in widescreen (row span 432px vs 398px view),
+so the third platform cannot be hidden — it needs real OAM.
+
+**Fix: WS-RELOC** (8 copies, anchor block `$01C9A1` = the always-runs
+post-draw block, unscoped like WS-DESPAWN). Wrapped tiles landing on
+free entries 64/65 stay; the attr-swept entry-66 tile relocates to
+free entry 73 (byte 0x24, extras `$0469`), sources parked. The
+WS-CHAIN alias-park moved into the same loop: it is now wrap-aware
+(the old loop parked into the packed OAM high table `$0400-$041F`
+for slot-5 platforms — latent corruption) and runs on SpriteLock
+frames (message box / death), where the old host block `$01C9EC` is
+skipped but the draw is not. Free-entry claims verified empirically
+via the always-on WRAM-write ring (`trace_wram` extension + soak on
+the user's save state 1): candidates entry 72 (`$0323` attr-swept by
+PlayerDraw) and entry 127 (`$03FC` = the platform's own 7th tile!)
+were rejected by ring evidence.
+
+### Bug B — paratroopa wings pop in/out at the 4:3 boundary
+
+`KoopaWingGfxRt` (`$019E28`) draws the wing tile AFTER its body's
+`FinishOAMWriteRt` pass and carries a private hard cull: it skips
+y/tile/attr/size unless the 16-bit wing screen-x is in [0,256). The
+body (GetDrawInfo + WS-FLAG) renders across the widescreen view while
+the wing vanishes in the margins. It also never sets the tile's
+x-high bit (always 0 inside vanilla's window).
+
+**Fix: WS-WING** (12 copies, anchor block `$019E3C` entry, unscoped —
+covers all `DrawWingTiles_*` entry/variant functions). In the visible
+margins the snippet writes y/tile/attr from the same ROM tables and
+the size byte with x-high SET; vanilla still writes the x low byte
+itself and skips the rest, so no double-write, and the in-window path
+is untouched. `GoombaWingGfxRt` needs no patch — it ends with its own
+`FinishOAMWriteRt` (A=#$02, Y=#$FF) which recomputes per-tile x-high
+from world coords.
+
+---
+
 ## Session 2026-06-12 (later, Fable) — Widescreen `$5F` chain platform: FIXED (WS-CHAIN + WS-SPAWN sweep + WS-SLOT)
 
 **Status: FIXED** by three override-layer changes in
