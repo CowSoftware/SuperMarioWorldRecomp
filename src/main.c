@@ -343,6 +343,10 @@ void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
       // outer chunks keep their authentic 16px inset from the screen edge.
       // Message boxes render lower on BG3 and are unaffected.
       PpuSetWidescreenHudSplit(g_ppu, g_config.widescreen_hud ? 40 : 0, 56, 184);
+      // The status bar occupies BG3 scanlines < 40; below it, level content on
+      // BG3 (water surface/body tiles) must fill the widescreen margins like
+      // BG1/BG2 instead of stopping at the authentic 256-wide edge.
+      PpuSetWidescreenBg3Widen(g_ppu, 40);
     } else {
       // Center the authentic 256 view and black out the side margins.
       PpuSetExtraSpaceCentered(g_ppu, (uint8_t)g_ws_extra);

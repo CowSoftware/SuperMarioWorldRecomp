@@ -3,7 +3,16 @@
 # repo evolving on its own cadence). Update via:
 #   git -C ../snesrecomp rev-parse main > /tmp/sha && \
 #     sed -i "s|^sha = .*|sha = $(cat /tmp/sha)|" snesrecomp.pin
-sha = f63de713d9cf54a789ab8da30298fad2ef9c645b
+sha = 336926404d362c9bdcd5aa0bdc89200741fec0ab
+# 2026-06-12 bump (f63de71 -> 3369264): ppu widescreen BG3 widen. New opt-in
+# PpuSetWidescreenBg3Widen(ppu, from_y): on scanlines >= from_y, BG3 (layer 2)
+# gets the same side-margin extension as BG1/BG2 instead of staying clamped to
+# 256. SMW draws in-level water on BG3, so the old clamp (kept for the BG3
+# status bar) clipped the water to 4:3 — it stopped at the authentic edge while
+# the rest of the scene filled 16:9. Runner-only, src/gen untouched (no regen).
+# Default 0 = off, so Zelda/MMX rendering is byte-unchanged; SMW opts in with
+# its 40px HUD band height. Companion SMW main.c calls the setter in-level.
+# User-verified live: water now fills the full widescreen view.
 # 2026-06-12 bump (c17bef7 -> f63de71): merge feat/shadow-enhancements —
 # opt-in S-DSP cubic audio + CRT color LUT, all default OFF. Adds three
 # framework sources (snes/dsp_shadow.c, snes/audio_shadow.c,
