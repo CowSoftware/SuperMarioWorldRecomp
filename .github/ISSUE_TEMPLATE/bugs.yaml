@@ -1,7 +1,7 @@
 # Docs - https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema
 name: Bug Report
 description: Report any bugs related to the game or the launcher
-labels: 
+labels: [bug]
 # assignees:
 #   - octocat
 body:
