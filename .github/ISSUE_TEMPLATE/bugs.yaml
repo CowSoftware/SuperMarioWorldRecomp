@@ -13,6 +13,7 @@ body:
       options:
       - Launcher
       - Game
+    validations:
       required: true
   - type: textarea
     id: desc
