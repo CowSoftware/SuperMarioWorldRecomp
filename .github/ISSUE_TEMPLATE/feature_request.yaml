@@ -1,6 +1,6 @@
 # Docs - https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema
 name: Feature request
-description: Suggest a new feature for the launcher
+description: Suggest a new feature for the game or the launcher.
 labels: [enhancment]
 
 body:
